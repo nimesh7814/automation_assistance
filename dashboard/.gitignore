@@ -1,0 +1,4 @@
+.venv
+__pycache__/
+ui-react/node_modules
+ui-react/dist

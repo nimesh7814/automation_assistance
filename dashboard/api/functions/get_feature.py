@@ -1,11 +1,11 @@
 from fastapi import HTTPException
-from functions.session import is_data_here
+from functions.session import get_dataset
 
+# Fetch all features in the current session
+def fetch_all():
 
-def get_all_features():
-    
     # Check something is loaded in the session
-    data = is_data_here()
+    data = get_dataset()
     features = data["features"]
 
     # Return all features with a count
@@ -14,10 +14,10 @@ def get_all_features():
         "features": features
     }
 
-
+# Fetch a single feature by its index
 def get_single_feature(feature_id: int):
-    
-    data = is_data_here()
+
+    data = get_dataset()
     features = data["features"]
 
     # Check the feature_id is within range

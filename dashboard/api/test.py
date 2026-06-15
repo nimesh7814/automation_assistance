@@ -1,72 +1,20 @@
-import json
-import tempfile
-import geojson_validator
+import geopandas as gpd
 
+input_file = r"D:\Work\Github\automation_assistance\dashboard\data\Farm_file.geojson"
+gdf = gpd.read_file(input_file)
 
-test_geojson = {
-    "type": "FeatureCollection",
-    "features": [
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [80.0, 7.0],
-                        [81.0, 7.0],
-                        [81.0, 8.0],
-                        [80.0, 7.0]
-                    ]
-                ]
-            },
-            "properties": {"id": 1}
-        },
-        {
-            "type": "Feature",
-            "properties": {"id": 2}
-        },
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "Circle",
-                "coordinates": []
-            },
-            "properties": {"id": 3}
-        },
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": "INVALID_COORDINATES"
-            },
-            "properties": {"id": 4}
-        },
-        {
-            "type": "Feature",
-            "geometry": None,
-            "properties": {"id": 5}
-        },
-        {
-            "type": "Feature",
-            "geometry": {
-                "features": [
-                    {"type": "Feature"}
-                ]
-            },
-            "properties": {"id": 6}
-        }
-    ]
-}
+print("Original features:", len(gdf))
 
+gdf["wkt"] = gdf.geometry.apply(lambda x: x.wkt)
+gdf = gdf.drop_duplicates(subset="wkt").drop(columns=["wkt"])
 
-# ---- FIXED TEMP FILE HANDLING ----
-with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False) as f:
-    json.dump(test_geojson, f)
-    temp_path = f.name  # store path AFTER closing
+print("After exact duplicate removal:", len(gdf))
 
-# NOW file is closed → safe for validator
-try:
-    result = geojson_validator.validate_structure(temp_path)
-    print("RESULT:", result)
-except Exception as e:
-    print("ERROR:", e)
+gdf["geometry"] = gdf.geometry.simplify(tolerance=0.01, preserve_topology=True)
+
+gdf["wkt"] = gdf.geometry.apply(lambda x: x.wkt)
+gdf = gdf.drop_duplicates(subset="wkt").drop(columns=["wkt"])
+
+print("After simplification + duplicate removal:", len(gdf))
+
+gdf.to_file("cleaned_example.geojson", driver="GeoJSON")

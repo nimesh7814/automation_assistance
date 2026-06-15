@@ -1,10 +1,10 @@
 from fastapi import HTTPException
-from functions.session import is_data_here
+from functions.session import get_dataset
 
-
+# Delete a feature by its index
 def delete_feature_geojson(feature_id: int):
-    
-    data = is_data_here()
+
+    data = get_dataset()
     features = data["features"]
 
     # Check the feature_id is within range

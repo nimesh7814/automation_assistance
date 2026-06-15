@@ -1,15 +1,20 @@
 from fastapi import HTTPException
-from functions.session import is_data_here
+from functions.session import get_dataset
 
 
+# Replace the geometry of an existing feature
 def update_geometry_geojson(feature_id: int, new_geometry: dict):
-    
-    data = is_data_here()
+
+    data = get_dataset()
     features = data["features"]
 
     # Check the feature_id is within range
     if feature_id < 0 or feature_id >= len(features):
         raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found. Valid range is 0 to {len(features) - 1}.")
+
+    # Check a geometry was sent at all
+    if not isinstance(new_geometry, dict):
+        raise HTTPException(status_code=400, detail="Request body must include a 'geometry' object.")
 
     # Check the new geometry has a valid type
     if new_geometry.get("type") not in ("Polygon", "MultiPolygon"):
@@ -29,19 +34,24 @@ def update_geometry_geojson(feature_id: int, new_geometry: dict):
         "updated_feature": features[feature_id]
     }
 
-    
+
+# Add a brand new feature (e.g. a polygon drawn on the map)
 def add_feature_geojson(new_feature: dict):
-    """Add a new feature to the GeoJSON data."""
-    
-    data = is_data_here()
+
+    data = get_dataset()
 
     # Check the new feature has a geometry
-    if not new_feature.get("geometry"):
+    geometry = new_feature.get("geometry")
+    if not isinstance(geometry, dict):
         raise HTTPException(status_code=400, detail="Feature must include a geometry.")
 
     # Check the geometry is a Polygon or MultiPolygon
-    if new_feature["geometry"].get("type") not in ("Polygon", "MultiPolygon"):
+    if geometry.get("type") not in ("Polygon", "MultiPolygon"):
         raise HTTPException(status_code=400, detail="Geometry must be a Polygon or MultiPolygon.")
+
+    # Fill in the standard GeoJSON feature fields if they are missing
+    new_feature.setdefault("type", "Feature")
+    new_feature.setdefault("properties", {})
 
     # Add the new feature to the session store
     data["features"].append(new_feature)
@@ -53,10 +63,10 @@ def add_feature_geojson(new_feature: dict):
     }
 
 
+# Replace the attribute table (properties) of a feature
 def update_properties_geojson(feature_id: int, new_properties: dict):
-    """Update the properties of a feature."""
-    
-    data = is_data_here()
+
+    data = get_dataset()
     features = data["features"]
 
     # Check the feature_id is within range

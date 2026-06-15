@@ -57,14 +57,14 @@ or start the whole stack (API + Streamlit UI) with `docker compose up --build`.
 | `PUT` | `/features/{id}/geometry` | Replace the geometry of a feature. |
 | `PUT` | `/features/{id}/properties` | Replace the attribute table (properties) of a feature. |
 | `DELETE` | `/features/{id}` | Delete a feature. |
-| `POST` | `/undo` | Undo the last change. |
-| `POST` | `/redo` | Redo the last undone change. |
 | `GET` | `/export` | Download the current dataset as a `.geojson` file. |
 | `DELETE` | `/data` | Clear the session and start over. |
 
-All endpoints return JSON. Errors come back as
-`{"detail": "..."}` with an appropriate HTTP status code (e.g. `400`
-for bad input, `404` if nothing has been uploaded yet).
+All endpoints return JSON. Errors come back in the same shape:
+`{"message": "...", "errors": [...]}` with an appropriate HTTP status
+code (e.g. `400` for bad input, `404` if nothing has been uploaded
+yet). `errors` is a list of details (e.g. which feature had a problem)
+and is empty when there is nothing extra to report.
 
 ## Geometry validation
 

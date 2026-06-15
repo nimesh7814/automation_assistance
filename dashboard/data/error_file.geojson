@@ -1,0 +1,54 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [80.0, 7.0],
+                        [81.0, 7.0],
+                        [81.0, 8.0],
+                        [80.0, 7.0]
+                    ]
+                ]
+            },
+            "properties": {"id": 1}
+        },
+        {
+            "type": "Feature",
+            "properties": {"id": 2}
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Circle",
+                "coordinates": []
+            },
+            "properties": {"id": 3}
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": "INVALID_COORDINATES"
+            },
+            "properties": {"id": 4}
+        },
+        {
+            "type": "Feature",
+            "geometry": None,
+            "properties": {"id": 5}
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "features": [
+                    {"type": "Feature"}
+                ]
+            },
+            "properties": {"id": 6}
+        }
+    ]
+}

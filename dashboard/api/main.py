@@ -6,13 +6,13 @@ from fastapi.responses import JSONResponse
 
 # Import functions from functions folder
 from functions.upload_input import upload_geojson, text_geojson
-from functions.validate_fix import validate_geojson, fix_geojson
-from functions.dublicates import detect_duplicates
-from functions.session import is_data_here, clear_geojson
+from functions.validate_fix import validate_geometry, fix_geojson
+from functions.duplicates import detect_duplicates
+from functions.session import clear_geojson
 from functions.edit_geometry_attribute import (update_geometry_geojson, add_feature_geojson, update_properties_geojson)
 from functions.delete_feature import delete_feature_geojson
 from functions.export import export as export_func
-from functions.get_feature import get_all_features, get_single_feature
+from functions.get_feature import fetch_all, get_single_feature
 
 # Basic logging setup (console)
 logging.basicConfig(
@@ -24,6 +24,14 @@ logger = logging.getLogger("geojson_dashboard")
 # Create FastAPI app
 app = FastAPI(title="GeoJSON Dashboard API")
 
+# Allow the dashboard frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Log every request with its outcome status code.
 @app.middleware("http")
@@ -33,14 +41,31 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# Catch anything that isn't already an HTTPException, log it with a full
-# traceback for debugging, and return a friendly message to the client.
+# Give every error response the same shape: {"message": ..., "errors": [...]}
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_request: Request, exc: HTTPException):
+    detail = exc.detail
+
+    if isinstance(detail, dict):
+        message = detail.get("message", "Request failed.")
+        errors = detail.get("errors", [])
+    else:
+        message = str(detail)
+        errors = []
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": message, "errors": errors},
+    )
+
+
+# Catch anything that isn't already an HTTPException
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, _exc: Exception):
     logger.exception(f"Unhandled error on {request.method} {request.url.path}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Something went wrong while processing your request."},
+        content={"message": "Something went wrong while processing your request.", "errors": []},
     )
 
 
@@ -57,7 +82,7 @@ async def upload_text(body: dict):
 # Validation of the GeoJSON Data
 @app.get("/validate")
 def validate():
-    return validate_geojson()
+    return validate_geometry()
 
 @app.post("/fix")
 def fix():
@@ -67,17 +92,19 @@ def fix():
 # Features of Given GeoJSON File
 @app.get("/features")
 def get_all_features():
-    return get_all_features()
+    return fetch_all()
 
 @app.get("/features/{feature_id}")
-def get_single_feature(feature_id: int):
+def get_feature_by_id(feature_id: int):
     return get_single_feature(feature_id)
 
 
 # Find Duplicate Geometries
 @app.get("/duplicates")
-def get_duplicates(remove_duplicates: bool = Query(default=False)):
-    return detect_duplicates(remove_duplicates)
+def get_duplicates(
+    remove_duplicates: bool = Query(default=False),
+    duplicate_threshold: float = Query(default=0.99, ge=0.0, le=1.0),):
+    return detect_duplicates(remove_duplicates, duplicate_threshold)
 
 
 # Edit Geometry of a Given Feature

@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-75.445, 5.639],
+            [-75.446, 5.64],
+            [-75.447, 5.639],
+            [-75.446, 5.638]
+          ]
+        ]
+      },
+      "properties": { "id": 1, "name": "Unclosed Ring Farm" }
+    }
+  ]
+}
