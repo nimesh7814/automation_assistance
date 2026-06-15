@@ -1,44 +1,57 @@
 # Import Libraries
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import logging
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-import json
-from geojason import (
-    fix_geojson, process_geojson, validate_geojson,
-    detect_duplicates, is_data_here, update_geometry_geojson,
-    add_feature_geojson, delete_feature_geojson, update_properties_geojson,
-    undo_geojson, export_geojson
-)
 from fastapi.responses import JSONResponse
-from fastapi import Query
+
+# Import functions from functions folder
+from functions.upload_input import upload_geojson, text_geojson
+from functions.validate_fix import validate_geojson, fix_geojson
+from functions.dublicates import detect_duplicates
+from functions.session import is_data_here, clear_geojson
+from functions.edit_geometry_attribute import (update_geometry_geojson, add_feature_geojson, update_properties_geojson)
+from functions.delete_feature import delete_feature_geojson
+from functions.export import export as export_func
+from functions.get_feature import get_all_features, get_single_feature
+
+# Basic logging setup (console)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger("geojson_dashboard")
 
 # Create FastAPI app
 app = FastAPI(title="GeoJSON Dashboard API")
 
-# Keep a history of changes for the Undo functionality
-undo_history = []
+
+# Log every request with its outcome status code.
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    response = await call_next(request)
+    logger.info(f"{request.method} {request.url.path} -> {response.status_code}")
+    return response
+
+
+# Catch anything that isn't already an HTTPException, log it with a full
+# traceback for debugging, and return a friendly message to the client.
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, _exc: Exception):
+    logger.exception(f"Unhandled error on {request.method} {request.url.path}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong while processing your request."},
+    )
 
 
 # Upload & Input the GeoJSON Data
 @app.post("/upload/file")
 async def upload_file(file: UploadFile = File(...)):
-    
-    # Read the uploaded file
-    contents = await file.read()
-    
-    # Validate the file content as JSON
-    try:
-        data = json.loads(contents.decode("utf-8"))
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="File is not valid JSON.")
-
-    # Print the Output
-    return process_geojson(data)
+    return await upload_geojson(file)
 
 @app.post("/upload/text")
 async def upload_text(body: dict):
-    
-    # Print the result
-    return process_geojson(body)
+    return text_geojson(body)
 
 
 # Validation of the GeoJSON Data
@@ -48,40 +61,17 @@ def validate():
 
 @app.post("/fix")
 def fix():
-    return fix_geojson(undo_history)
+    return fix_geojson()
 
 
 # Features of Given GeoJSON File
 @app.get("/features")
 def get_all_features():
-
-    # Check something is loaded in the session
-    data = is_data_here()
-
-    features = data["features"]
-
-    # Return all features with a count
-    return {
-        "total_features": len(features),
-        "features": features
-    }
+    return get_all_features()
 
 @app.get("/features/{feature_id}")
 def get_single_feature(feature_id: int):
-
-    data = is_data_here()
-
-    features = data["features"]
-
-    # Check the feature_id is within range
-    if feature_id < 0 or feature_id >= len(features):
-        raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found. Valid range is 0 to {len(features) - 1}.")
-
-    # Return the single feature
-    return {
-        "feature_id": feature_id,
-        "feature": features[feature_id]
-    }
+    return get_single_feature(feature_id)
 
 
 # Find Duplicate Geometries
@@ -93,34 +83,30 @@ def get_duplicates(remove_duplicates: bool = Query(default=False)):
 # Edit Geometry of a Given Feature
 @app.put("/features/{feature_id}/geometry")
 async def update_geometry(feature_id: int, body: dict):
-    return update_geometry_geojson(feature_id, body.get("geometry"), undo_history)
+    return update_geometry_geojson(feature_id, body.get("geometry"))
+
+@app.put("/features/{feature_id}/properties")
+async def update_properties(feature_id: int, body: dict):
+    return update_properties_geojson(feature_id, body)
 
 @app.post("/features")
 async def add_feature(body: dict):
-    return add_feature_geojson(body, undo_history)
+    return add_feature_geojson(body)
 
+
+# Delete a Given Feature
 @app.delete("/features/{feature_id}")
-def delete_feature(feature_id: int):
-    return delete_feature_geojson(feature_id, undo_history)
-
-
-# Edit Attributes of a Given Feature
-@app.put("/features/{feature_id}/properties")
-async def update_properties(feature_id: int, body: dict):
-    return update_properties_geojson(feature_id, body, undo_history)
-
-
-# Undo the Changes Made to the GeoJSON Data
-@app.post("/undo")
-def undo():
-    return undo_geojson(undo_history)
+async def delete_feature(feature_id: int):
+    return delete_feature_geojson(feature_id)
 
 
 # Export the final GeoJSON File
 @app.get("/export")
 def export():
-    data = export_geojson()
-    return JSONResponse(
-        content=data,
-        headers={"Content-Disposition": "attachment; filename=export.geojson"}
-    )
+    return export_func()
+
+
+# Clear the Imported GeoJSON Data
+@app.delete("/data")
+def session_reset():
+    return clear_geojson()

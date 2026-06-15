@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+python-multipart
+shapely
+geojson_validator
+geojson

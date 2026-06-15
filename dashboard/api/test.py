@@ -1,17 +1,72 @@
-import geojson_validator
-import json
+import geojson
 
-criteria_invalid = [
-    "unclosed",
-    "less_three_unique_nodes",
-    "exterior_not_ccw",
-    "interior_not_cw",
-    "inner_and_exterior_ring_intersect"
-]
+VALID_TYPES = ("Polygon", "MultiPolygon")
 
-content = '{"type":"Feature","geometry":{"type":"Point","coordinates":[80.63,7.29]},"properties":{}}'
+# FeatureCollection with every geometry type
+geojson_string = '''
+{
+    "type": "MultiPolygon",
+    "coordinates": [
+        [
+            [
+                [-75.445, 5.639],
+                [-75.446, 5.640],
+                [-75.447, 5.639],
+                [-75.446, 5.638],
+                [-75.445, 5.639]
+            ]
+        ],
+        [
+            [
+                [-75.500, 5.700],
+                [-75.510, 5.710],
+                [-75.520, 5.700],
+                [-75.510, 5.690],
+                [-75.500, 5.700]
+            ]
+        ]
+    ]
+}
+'''
 
-geojson_input = json.loads(content)
 
-geojson_validator.validate_structure(geojson_input)
-geojson_validator.validate_geometries(geojson_input, criteria_invalid)
+
+def verify(geojson_string: str):
+
+    # Parse the string
+    data = geojson.loads(geojson_string)
+
+    print(data)
+
+    top_type = data.get("type")
+
+    # FeatureCollection — check each feature
+    if top_type == "FeatureCollection":
+
+        valid = []
+        rejected = []
+
+        for index, feature in enumerate(data["features"]):
+            geom_type = feature.get("geometry", {}).get("type")
+            name = feature.get("properties", {}).get("name")
+
+            if geom_type in VALID_TYPES:
+                valid.append(feature)
+                print(f"  ✓ Feature {index} — {geom_type:<20} — {name}")
+            else:
+                rejected.append(feature)
+                print(f"  ✗ Feature {index} — {geom_type:<20} — {name} — rejected")
+
+        print(f"\nAccepted : {len(valid)} polygon feature(s)")
+        print(f"Rejected : {len(rejected)} non-polygon feature(s)")
+
+    # Bare Polygon or MultiPolygon
+    elif top_type in VALID_TYPES:
+        print(f"Valid — {top_type}")
+
+    # Anything else
+    else:
+        print(f"Rejected — '{top_type}' is not accepted.")
+
+
+verify(geojson_string)
