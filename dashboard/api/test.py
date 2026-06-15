@@ -1,72 +1,72 @@
-import geojson
+import json
+import tempfile
+import geojson_validator
 
-VALID_TYPES = ("Polygon", "MultiPolygon")
 
-# FeatureCollection with every geometry type
-geojson_string = '''
-{
-    "type": "MultiPolygon",
-    "coordinates": [
-        [
-            [
-                [-75.445, 5.639],
-                [-75.446, 5.640],
-                [-75.447, 5.639],
-                [-75.446, 5.638],
-                [-75.445, 5.639]
-            ]
-        ],
-        [
-            [
-                [-75.500, 5.700],
-                [-75.510, 5.710],
-                [-75.520, 5.700],
-                [-75.510, 5.690],
-                [-75.500, 5.700]
-            ]
-        ]
+test_geojson = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [80.0, 7.0],
+                        [81.0, 7.0],
+                        [81.0, 8.0],
+                        [80.0, 7.0]
+                    ]
+                ]
+            },
+            "properties": {"id": 1}
+        },
+        {
+            "type": "Feature",
+            "properties": {"id": 2}
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Circle",
+                "coordinates": []
+            },
+            "properties": {"id": 3}
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": "INVALID_COORDINATES"
+            },
+            "properties": {"id": 4}
+        },
+        {
+            "type": "Feature",
+            "geometry": None,
+            "properties": {"id": 5}
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "features": [
+                    {"type": "Feature"}
+                ]
+            },
+            "properties": {"id": 6}
+        }
     ]
 }
-'''
 
 
+# ---- FIXED TEMP FILE HANDLING ----
+with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False) as f:
+    json.dump(test_geojson, f)
+    temp_path = f.name  # store path AFTER closing
 
-def verify(geojson_string: str):
-
-    # Parse the string
-    data = geojson.loads(geojson_string)
-
-    print(data)
-
-    top_type = data.get("type")
-
-    # FeatureCollection — check each feature
-    if top_type == "FeatureCollection":
-
-        valid = []
-        rejected = []
-
-        for index, feature in enumerate(data["features"]):
-            geom_type = feature.get("geometry", {}).get("type")
-            name = feature.get("properties", {}).get("name")
-
-            if geom_type in VALID_TYPES:
-                valid.append(feature)
-                print(f"  ✓ Feature {index} — {geom_type:<20} — {name}")
-            else:
-                rejected.append(feature)
-                print(f"  ✗ Feature {index} — {geom_type:<20} — {name} — rejected")
-
-        print(f"\nAccepted : {len(valid)} polygon feature(s)")
-        print(f"Rejected : {len(rejected)} non-polygon feature(s)")
-
-    # Bare Polygon or MultiPolygon
-    elif top_type in VALID_TYPES:
-        print(f"Valid — {top_type}")
-
-    # Anything else
-    else:
-        print(f"Rejected — '{top_type}' is not accepted.")
-
-
-verify(geojson_string)
+# NOW file is closed → safe for validator
+try:
+    result = geojson_validator.validate_structure(temp_path)
+    print("RESULT:", result)
+except Exception as e:
+    print("ERROR:", e)

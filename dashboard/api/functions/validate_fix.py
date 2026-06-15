@@ -26,7 +26,6 @@ CRITERIA_PROBLEMATIC = [
 
 
 def validate_geojson():
-    """Validate the GeoJSON data structure and geometries."""
     
     data = is_data_here()
 
