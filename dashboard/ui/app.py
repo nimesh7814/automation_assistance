@@ -229,10 +229,12 @@ def update_map_bounds(features: list[dict], focus_id: int | None = None) -> dict
 # ─── Symbology ────────────────────────────────────────────────────────────────
 
 _DEFAULT_SYMBOLOGY: dict = {
-    "fill_color":   "#3b82f6",
-    "stroke_color": "#1e3a5f",
-    "fill_opacity": 0.35,
-    "stroke_width": 2,
+    "fill_color":      "#3b82f6",
+    "stroke_color":    "#1e3a5f",
+    "fill_opacity":    0.35,
+    "stroke_width":    2,
+    "color_by":        None,
+    "category_colors": {},
 }
 
 
@@ -263,20 +265,28 @@ def require_api_connection(key: str = "retry_api") -> bool:
 # ─── Map builders ─────────────────────────────────────────────────────────────
 
 _PALETTE = [
-    [30, 104, 175, 160],
-    [232, 120, 73, 160],
-    [65, 148, 108, 160],
-    [164, 93, 176, 160],
-    [210, 151, 55, 160],
-    [77, 152, 163, 160],
+    [30, 104, 175],
+    [232, 120, 73],
+    [65, 148, 108],
+    [164, 93, 176],
+    [210, 151, 55],
+    [77, 152, 163],
 ]
 
 
-def make_preview_map(features: list[dict], color_by: str | None = None) -> pdk.Deck:
+def _palette_hex(idx: int) -> str:
+    r, g, b = _PALETTE[idx % len(_PALETTE)]
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def make_preview_map(features: list[dict]) -> pdk.Deck:
     sym = get_symbology()
+    color_by = sym.get("color_by")
+    cat_colors = sym.get("category_colors") or {}
+    opacity = sym["fill_opacity"]
+    base_fill = hex_to_rgba(sym["fill_color"], opacity)
     view = pdk.ViewState(**update_map_bounds(features), pitch=0)
-    categories: dict[str, list[int]] = {}
-    base_fill = hex_to_rgba(sym["fill_color"], sym["fill_opacity"])
+    seen_cats: list[str] = []
     rendered = []
 
     for i, feature in enumerate(features):
@@ -285,8 +295,13 @@ def make_preview_map(features: list[dict], color_by: str | None = None) -> pdk.D
         props["_id"] = i
         if color_by and color_by in props:
             cat = str(props[color_by])
-            categories.setdefault(cat, _PALETTE[len(categories) % len(_PALETTE)])
-            props["_fill"] = categories[cat]
+            if cat in cat_colors:
+                props["_fill"] = hex_to_rgba(cat_colors[cat], opacity)
+            else:
+                if cat not in seen_cats:
+                    seen_cats.append(cat)
+                pal = _PALETTE[seen_cats.index(cat) % len(_PALETTE)]
+                props["_fill"] = [pal[0], pal[1], pal[2], int(opacity * 255)]
         else:
             props["_fill"] = base_fill
         item["properties"] = props
@@ -342,16 +357,26 @@ def make_edit_map(features: list[dict], selected_id: int) -> Map:
         item["properties"] = props
         collection["features"].append(item)
 
+    def _edit_style(feature, _sym=sym, _sel=selected_id):
+        fid = feature["properties"]["feature_id"]
+        if fid == _sel:
+            return {"fillColor": "#2563eb", "color": "#111827", "weight": 3, "fillOpacity": 0.30}
+        fill = _sym["fill_color"]
+        cb = _sym.get("color_by")
+        if cb and cb in feature["properties"]:
+            fill = (_sym.get("category_colors") or {}).get(str(feature["properties"][cb]), fill)
+        return {
+            "fillColor": fill,
+            "color": _sym["stroke_color"],
+            "weight": _sym["stroke_width"],
+            "fillOpacity": _sym["fill_opacity"],
+        }
+
     GeoJson(
         collection,
         name="Features",
         tooltip=GeoJsonTooltip(fields=["feature_id"], aliases=["Feature"]),
-        style_function=lambda f, _sym=sym, _sel=selected_id: {
-            "fillColor": "#2563eb" if f["properties"]["feature_id"] == _sel else _sym["fill_color"],
-            "color":     "#111827" if f["properties"]["feature_id"] == _sel else _sym["stroke_color"],
-            "weight":    3         if f["properties"]["feature_id"] == _sel else _sym["stroke_width"],
-            "fillOpacity": 0.30   if f["properties"]["feature_id"] == _sel else _sym["fill_opacity"],
-        },
+        style_function=_edit_style,
         highlight_function=lambda _: {"weight": 4, "fillOpacity": 0.50},
     ).add_to(fmap)
 
@@ -409,11 +434,10 @@ def render_upload_tab() -> None:
         )
 
         with st.container(horizontal=True):
-            upload_btn = st.button(
-                "Upload",
-                type="primary",
-                disabled=uploaded_file is None or not _api_online,
-                icon=":material/upload:",
+            upload_btn = (
+                st.button("Upload", type="primary", icon=":material/upload:")
+                if uploaded_file is not None and _api_online
+                else None
             )
             clear_btn = st.button("Clear session", icon=":material/delete_sweep:")
 
@@ -433,6 +457,7 @@ def render_upload_tab() -> None:
                         f"Uploaded {n} feature{'s' if n != 1 else ''} from **{uploaded_file.name}**",
                         icon=":material/check_circle:",
                     )
+                    st.rerun()
                 except APIError as exc:
                     st.error(exc.message, icon=":material/error:")
                     if exc.errors:
@@ -464,13 +489,7 @@ def render_upload_tab() -> None:
         features = st.session_state.get("features", [])
         if features:
             prop_df = flatten_properties(features)
-            color_options = [None] + [c for c in prop_df.columns if c != "#"]
-            color_by = st.selectbox(
-                "Color by attribute",
-                color_options,
-                format_func=lambda v: "Feature order" if v is None else str(v),
-            )
-            st.pydeck_chart(make_preview_map(features, color_by), height=MAP_HEIGHT - 100)
+            st.pydeck_chart(make_preview_map(features), height=MAP_HEIGHT - 100)
 
             st.markdown("**Attribute table**")
             st.dataframe(prop_df, hide_index=True, height=220)
@@ -602,19 +621,32 @@ def render_duplicate_tab(features: list[dict]) -> None:
         c3.metric("Intersect groups", dup_result.get("intersect_groups_found", 0))
         c4.metric("Intersect pairs", dup_result.get("intersections_found", 0))
 
-        rows = [
-            {
-                "Feature": f["feature_id"],
-                "Type": f["geometry_type"],
-                "Valid": bool(f["geometry_valid"]),
-                "Duplicate": bool(f["is_duplicate"]),
-                "Dup group": f["duplicate_group"],
-                "Intersects": bool(f.get("has_intersection")),
+        rows = []
+        for f in dup_result.get("features", []):
+            fid = f["feature_id"]
+            props = (
+                dict(features[fid].get("properties") or {})
+                if 0 <= fid < len(features) else {}
+            )
+            rows.append({
+                "Feature":        fid,
+                "Type":           f["geometry_type"],
+                "Valid":          bool(f["geometry_valid"]),
+                "Duplicate":      bool(f["is_duplicate"]),
+                "Dup group":      f["duplicate_group"],
+                "Intersects":     bool(f.get("has_intersection")),
                 "Intersect group": f.get("intersect_group"),
-            }
-            for f in dup_result.get("features", [])
-        ]
-        st.dataframe(pd.DataFrame(rows), hide_index=True)
+                **props,
+            })
+        st.dataframe(
+            pd.DataFrame(rows),
+            hide_index=True,
+            column_config={
+                "Valid":      st.column_config.CheckboxColumn("Valid"),
+                "Duplicate":  st.column_config.CheckboxColumn("Duplicate"),
+                "Intersects": st.column_config.CheckboxColumn("Intersects"),
+            },
+        )
 
         pairs = dup_result.get("intersection_pairs", [])
         if pairs:
@@ -927,26 +959,53 @@ with st.sidebar:
     else:
         st.badge("API offline", color="red", icon=":material/error:")
 
-    with st.expander("Symbology", icon=":material/palette:", expanded=False):
-        _sym = get_symbology().copy()
-        _sym["fill_color"]   = st.color_picker("Fill colour",   _sym["fill_color"],   key="sym_fill")
-        _sym["stroke_color"] = st.color_picker("Stroke colour", _sym["stroke_color"], key="sym_stroke")
-        _sym["fill_opacity"] = st.slider("Fill opacity",   0.0, 1.0, _sym["fill_opacity"],   0.05, key="sym_opacity")
-        _sym["stroke_width"] = st.slider("Stroke width",   1,   6,   _sym["stroke_width"],         key="sym_sw")
-        st.session_state["symbology"] = _sym
+    _sb_features = st.session_state.get("features", [])
+    if _sb_features:
+        with st.expander("Symbology", icon=":material/palette:", expanded=False):
+            _sym = get_symbology().copy()
+            _prop_cols = sorted({k for f in _sb_features for k in (f.get("properties") or {})})
+            _col_opts  = [None] + _prop_cols
+            _cur_cb    = _sym.get("color_by") if _sym.get("color_by") in _col_opts else None
+            _sym["color_by"] = st.selectbox(
+                "Color by",
+                _col_opts,
+                index=_col_opts.index(_cur_cb),
+                format_func=lambda v: "Single colour" if v is None else v,
+                key="sym_color_by",
+            )
+            if _sym["color_by"]:
+                _uniq = sorted({
+                    str((f.get("properties") or {}).get(_sym["color_by"], ""))
+                    for f in _sb_features
+                })
+                _cat_colors = dict(_sym.get("category_colors") or {})
+                st.caption("Category colours (auto-assigned, customisable):")
+                for _ci, _cv in enumerate(_uniq):
+                    _cat_colors[_cv] = st.color_picker(
+                        _cv or "(empty)",
+                        _cat_colors.get(_cv, _palette_hex(_ci)),
+                        key=f"sym_cat_{_cv}",
+                    )
+                _sym["category_colors"] = _cat_colors
+            else:
+                _sym["fill_color"] = st.color_picker("Fill colour", _sym["fill_color"], key="sym_fill")
+            _sym["stroke_color"] = st.color_picker("Stroke colour", _sym["stroke_color"], key="sym_stroke")
+            _sym["fill_opacity"] = st.slider("Opacity", 0.0, 1.0, float(_sym["fill_opacity"]), 0.05, key="sym_opacity")
+            _sym["stroke_width"] = st.slider("Stroke width", 1, 6, int(_sym["stroke_width"]), key="sym_sw")
+            st.session_state["symbology"] = _sym
 
-    sb_features = st.session_state.get("features", [])
+    sb_features = _sb_features
     if sb_features:
         st.divider()
         up = st.session_state.get("upload_result") or {}
         loaded = up.get("selected_features", len(sb_features))
         total = up.get("total_features", loaded)
         skipped = max(total - loaded, 0)
+        file_name = st.session_state.get("file_name", "Unknown")
 
-        st.metric("File", st.session_state.get("file_name", "Unknown"))
-        st.metric("Features loaded", loaded)
-        if skipped:
-            st.metric("Skipped", skipped)
+        st.caption(f":material/insert_drive_file: **{file_name}**")
+        st.caption(f":material/layers: {loaded} feature{'s' if loaded != 1 else ''} loaded"
+                   + (f" · {skipped} skipped" if skipped else ""))
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
