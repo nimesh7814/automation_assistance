@@ -9,4 +9,4 @@ COPY ui/ ./
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "Home.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.maxUploadSize=200"]
+CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.maxUploadSize=200", "--server.headless=true"]

@@ -8,18 +8,18 @@ from functions.session import get_dataset, set_dataset
 # Criteria
 CRITERIA_INVALID = {
     # geojson_validator supported
-    "unclosed":                       "Ring is not closed — first and last coordinate must be identical",
-    "less_three_unique_nodes":        "Polygon has fewer than 3 unique points",
-    "exterior_not_ccw":               "Exterior ring is clockwise, must be counterclockwise per RFC 7946",
-    "interior_not_cw":                "Interior ring (hole) is counterclockwise, must be clockwise per RFC 7946",
+    "unclosed": "Ring is not closed",
+    "less_three_unique_nodes": "Polygon has fewer than 3 unique points",
+    "exterior_not_ccw": "Exterior ring is clockwise, must be counterclockwise per RFC 7946",
+    "interior_not_cw": "Interior ring (hole) is counterclockwise, must be clockwise per RFC 7946",
     "inner_and_exterior_ring_intersect": "Interior ring crosses the exterior boundary, hole must be fully inside",
     # Custom checks
-    "empty_geometry":                 "Geometry is null or has no coordinates",
-    "self_intersection":              "Polygon edges cross themselves, creating an invalid shape",
-    "hole_outside":                   "Interior ring (hole) lies outside the exterior boundary",
+    "empty_geometry": "Geometry is null or has no coordinates",
+    "self_intersection": "Polygon edges cross themselves, creating an invalid shape",
+    "hole_outside": "Interior ring (hole) lies outside the exterior boundary",
 }
 
-CRITERIA_LIST   = list(CRITERIA_INVALID.keys())
+CRITERIA_LIST = list(CRITERIA_INVALID.keys())
 VALIDATOR_CRITERIA = [
     "unclosed",
     "less_three_unique_nodes",
@@ -109,13 +109,13 @@ def check_hole_outside(features: list) -> list:
 def run_custom_checks(features: list) -> dict:
     results = {}
 
-    empty   = check_empty_geometry(features)
+    empty = check_empty_geometry(features)
     self_ix = check_self_intersection(features)
-    hole    = check_hole_outside(features)
+    hole = check_hole_outside(features)
 
-    if empty:   results["empty_geometry"]    = empty
+    if empty: results["empty_geometry"] = empty
     if self_ix: results["self_intersection"] = self_ix
-    if hole:    results["hole_outside"]      = hole
+    if hole: results["hole_outside"] = hole
 
     return results
 
@@ -126,9 +126,9 @@ def format_geometry_issues(invalid: dict) -> list:
     for criteria, feature_indices in invalid.items():
         for feature_index in feature_indices:
             formatted.append({
-                "feature":      feature_index,
-                "criteria":     criteria,
-                "description":  CRITERIA_INVALID.get(criteria, criteria),
+                "feature": feature_index,
+                "criteria": criteria,
+                "description": CRITERIA_INVALID.get(criteria, criteria),
                 "auto_fixable": criteria in AUTO_FIXABLE,
             })
     return formatted
@@ -136,16 +136,16 @@ def format_geometry_issues(invalid: dict) -> list:
 
 # Validate
 def validate_geometry(session_id: str):
-    data     = get_dataset(session_id)
+    data = get_dataset(session_id)
     features = data.get("features", [])
 
     # geojson_validator checks
     geometry_issues = geojson_validator.validate_geometries(data, VALIDATOR_CRITERIA)
-    invalid         = geometry_issues.get("invalid", {})
+    invalid = geometry_issues.get("invalid", {})
 
     # Custom checks
     custom_invalid  = run_custom_checks(features)
-    invalid         = {**invalid, **custom_invalid}
+    invalid = {**invalid, **custom_invalid}
 
     is_valid = not invalid
 
@@ -154,7 +154,7 @@ def validate_geometry(session_id: str):
         "summary": {
             "total_features": sum(geometry_issues.get("count_geometry_types", {}).values()),
             "geometry_types": geometry_issues.get("count_geometry_types", {}),
-            "invalid_count":  sum(len(v) for v in invalid.values()),
+            "invalid_count": sum(len(v) for v in invalid.values()),
         },
         "issues": format_geometry_issues(invalid),
     }
@@ -163,12 +163,12 @@ def validate_geometry(session_id: str):
 # Fix
 
 def fix_geojson(session_id: str):
-    data     = get_dataset(session_id)
+    data = get_dataset(session_id)
     features = data.get("features", [])
 
     # Validate before fix
     geometry_issues_before = geojson_validator.validate_geometries(data, VALIDATOR_CRITERIA)
-    invalid_before         = {
+    invalid_before = {
         **geometry_issues_before.get("invalid", {}),
         **run_custom_checks(features),
     }
@@ -187,9 +187,9 @@ def fix_geojson(session_id: str):
     set_dataset(session_id, fixed)
 
     # Validate after fix
-    features_after         = fixed.get("features", [])
+    features_after = fixed.get("features", [])
     geometry_issues_after  = geojson_validator.validate_geometries(fixed, VALIDATOR_CRITERIA)
-    invalid_after          = {
+    invalid_after = {
         **geometry_issues_after.get("invalid", {}),
         **run_custom_checks(features_after),
     }
@@ -204,9 +204,9 @@ def fix_geojson(session_id: str):
     return {
         "message": "Geometries fixed and session updated.",
         "summary": {
-            "fixed_count":     sum(len(v) for v in fixed_invalid.values()),
+            "fixed_count": sum(len(v) for v in fixed_invalid.values()),
             "remaining_count": sum(len(v) for v in invalid_after.values()),
         },
-        "fixed":     format_geometry_issues(fixed_invalid),
+        "fixed": format_geometry_issues(fixed_invalid),
         "remaining": format_geometry_issues(invalid_after),
     }

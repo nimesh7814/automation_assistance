@@ -1,4 +1,6 @@
-geopandas
-pydeck
-shapely
 streamlit
+requests
+pandas
+pydeck
+folium
+streamlit-folium
