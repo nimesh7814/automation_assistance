@@ -279,13 +279,13 @@ def _palette_hex(idx: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def make_preview_map(features: list[dict]) -> pdk.Deck:
+def make_preview_map(features: list[dict], focus_id: int | None = None) -> pdk.Deck:
     sym = get_symbology()
     color_by = sym.get("color_by")
     cat_colors = sym.get("category_colors") or {}
     opacity = sym["fill_opacity"]
     base_fill = hex_to_rgba(sym["fill_color"], opacity)
-    view = pdk.ViewState(**update_map_bounds(features), pitch=0)
+    view = pdk.ViewState(**update_map_bounds(features, focus_id), pitch=0)
     seen_cats: list[str] = []
     rendered = []
 
@@ -452,6 +452,7 @@ def render_upload_tab() -> None:
                     )
                     st.session_state.pop("validate_result", None)
                     st.session_state.pop("duplicate_result", None)
+                    st.session_state.pop("upload_focus_id", None)  # reset to full extent
                     n = len(st.session_state["features"])
                     st.toast(
                         f"Uploaded {n} feature{'s' if n != 1 else ''} from **{uploaded_file.name}**",
@@ -489,10 +490,27 @@ def render_upload_tab() -> None:
         features = st.session_state.get("features", [])
         if features:
             prop_df = flatten_properties(features)
-            st.pydeck_chart(make_preview_map(features), height=MAP_HEIGHT - 100)
-
-            st.markdown("**Attribute table**")
-            st.dataframe(prop_df, hide_index=True, height=220)
+            _focus = st.session_state.get("upload_focus_id")
+            st.pydeck_chart(
+                make_preview_map(features, _focus),
+                height=MAP_HEIGHT - 100,
+                key=f"upload_map_{_focus}_{len(features)}",
+            )
+            st.markdown("**Attribute table** — click a row to zoom the map to that feature")
+            _up_sel = st.dataframe(
+                prop_df,
+                hide_index=True,
+                height=220,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="upload_feat_list",
+            )
+            _up_rows = _up_sel.selection.rows if _up_sel else []
+            if _up_rows:
+                _new_focus = int(prop_df.iloc[_up_rows[0]]["#"])
+                if _new_focus != _focus:
+                    st.session_state["upload_focus_id"] = _new_focus
+                    st.rerun()
         else:
             st.info(
                 "Upload a GeoJSON file to see the map and attribute table here.",
@@ -598,6 +616,7 @@ def render_duplicate_tab(features: list[dict]) -> None:
                     "GET", "/duplicates",
                     params={"remove_duplicates": False, "duplicate_threshold": threshold},
                 )
+                st.rerun()
             except APIError as exc:
                 st.error(exc.message, icon=":material/error:")
 
@@ -714,19 +733,26 @@ def render_edit_tab(features: list[dict]) -> None:
 
     with right:
         # ── TABLE 1: feature list — click row to select, or zoom by ID ───────
-        _z_lbl, _z_sel, _z_btn = st.columns([1.8, 1.5, 1])
+        _z_lbl, _z_btn, _z_del = st.columns([3, 0.7, 0.7])
         _z_lbl.markdown("**Feature list**")
-        _zoom_id = _z_sel.selectbox(
-            "zoom_id",
-            range(len(features)),
-            index=stored,
-            format_func=lambda i: f"# {i}",
-            label_visibility="collapsed",
-            key="zoom_select",
-        )
-        if _z_btn.button(":material/zoom_in:", help="Zoom map to this feature", use_container_width=True, key="zoom_btn"):
-            st.session_state["focus_feature_id"] = int(_zoom_id)
+        if _z_btn.button(":material/zoom_in:", help="Zoom to selected feature", use_container_width=True, key="zoom_btn"):
+            st.session_state["focus_feature_id"] = stored
+            st.session_state["zoom_ver"] = st.session_state.get("zoom_ver", 0) + 1
             st.rerun()
+        with _z_del:
+            st.markdown('<span class="del-feat-mark"></span>', unsafe_allow_html=True)
+            if st.button("", icon=":material/delete:", help=f"Delete feature {stored}", use_container_width=True, key="del_feat_btn"):
+                try:
+                    api_request("DELETE", f"/features/{stored}")
+                    st.session_state.pop("focus_feature_id", None)
+                    st.session_state.pop("export_bytes", None)
+                    st.session_state.pop("zoom_select", None)
+                    st.session_state.pop("zoom_ver", None)
+                    refresh_features()
+                    st.toast(f"Feature {stored} deleted.", icon=":material/check_circle:")
+                    st.rerun()
+                except APIError as exc:
+                    st.error(exc.message, icon=":material/error:")
 
         sel_event = st.dataframe(
             df,
@@ -740,7 +766,9 @@ def render_edit_tab(features: list[dict]) -> None:
         sel_rows = sel_event.selection.rows if sel_event else []
         if sel_rows:
             selected = int(df.iloc[sel_rows[0]]["#"])
-            st.session_state["focus_feature_id"] = selected
+            if selected != stored:
+                st.session_state["focus_feature_id"] = selected
+                st.rerun()
         else:
             selected = stored
 
@@ -805,7 +833,7 @@ def render_edit_tab(features: list[dict]) -> None:
             width=None,
             use_container_width=True,
             returned_objects=["last_active_drawing", "all_drawings"],
-            key=f"edit_map_{selected}_{len(features)}",
+            key=f"edit_map_{selected}_{len(features)}_{st.session_state.get('zoom_ver', 0)}",
         )
 
         # Resolve the last drawn/edited shape
@@ -925,14 +953,32 @@ st.markdown(
         border-radius: 8px;
         padding: 0.75rem;
     }
-    div[data-testid="stDownloadButton"] > button {
+    div[data-testid="stDownloadButton"] > button,
+    button[data-testid="stBaseButton-primary"],
+    button[kind="primaryFormSubmit"],
+    button[kind="primary"] {
         background-color: #16a34a !important;
         border-color: #16a34a !important;
         color: white !important;
     }
-    div[data-testid="stDownloadButton"] > button:hover {
+    div[data-testid="stDownloadButton"] > button:hover,
+    button[data-testid="stBaseButton-primary"]:hover,
+    button[kind="primaryFormSubmit"]:hover,
+    button[kind="primary"]:hover {
         background-color: #15803d !important;
         border-color: #15803d !important;
+    }
+    .element-container:has(.del-feat-mark) {
+        display: none !important;
+    }
+    .element-container:has(.del-feat-mark) + .element-container button {
+        background-color: #dc2626 !important;
+        border-color: #dc2626 !important;
+        color: white !important;
+    }
+    .element-container:has(.del-feat-mark) + .element-container button:hover {
+        background-color: #b91c1c !important;
+        border-color: #b91c1c !important;
     }
     </style>
     """,
