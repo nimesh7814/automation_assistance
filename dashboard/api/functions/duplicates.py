@@ -11,8 +11,8 @@ def clean_group_number(value):
     return int(value)
 
 # Detect duplicate geometries based on their rounded WKT representations
-def detect_duplicates(remove_duplicates: bool = False, duplicate_threshold: float = 0.99):
-    data = get_dataset()
+def detect_duplicates(session_id: str, remove_duplicates: bool = False, duplicate_threshold: float = 0.99):
+    data = get_dataset(session_id)
     features = data["features"]
     total_before = len(features)
 

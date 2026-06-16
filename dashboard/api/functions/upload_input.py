@@ -3,17 +3,17 @@ import tempfile
 import os
 import geojson_validator
 from fastapi import HTTPException, UploadFile
-from functions.session import geojson_dataset
+from functions.session import set_dataset
 
 VALID_TYPES = ("Polygon", "MultiPolygon")
 
 
 # File upload
-async def upload_geojson(file: UploadFile) -> dict:
+async def upload_geojson(file: UploadFile, session_id: str) -> dict:
     contents = await file.read()
     data, feature_issues = parse_and_validate(contents)
     filtered = filter_geometries(data, feature_issues)
-    return process_geojson(data, filtered)
+    return process_geojson(data, filtered, session_id)
 
 # Parse the uploaded bytes as JSON and check the GeoJSON structure
 def parse_and_validate(contents: bytes) -> tuple[dict, dict]:
@@ -189,7 +189,7 @@ def filter_geometries(data: dict, feature_issues: dict) -> dict:
     return {"accepted": accepted, "rejected": rejected}
 
 # Store the accepted features as the session data and summarise the result
-def process_geojson(data: dict, filtered: dict) -> dict:
+def process_geojson(data: dict, filtered: dict, session_id: str) -> dict:
 
     accepted = filtered["accepted"]
     rejected = filtered["rejected"]
@@ -199,7 +199,7 @@ def process_geojson(data: dict, filtered: dict) -> dict:
         "features": accepted
     }
 
-    geojson_dataset["data"] = processed
+    set_dataset(session_id, processed)
 
     total = len(data.get("features", [])) if data.get("type") == "FeatureCollection" else 1
 

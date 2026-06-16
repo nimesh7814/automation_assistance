@@ -3,9 +3,9 @@ from functions.session import get_dataset
 
 
 # Replace the geometry of an existing feature
-def update_geometry_geojson(feature_id: int, new_geometry: dict):
+def update_geometry_geojson(session_id: str, feature_id: int, new_geometry: dict):
 
-    data = get_dataset()
+    data = get_dataset(session_id)
     features = data["features"]
 
     # Check the feature_id is within range
@@ -36,9 +36,9 @@ def update_geometry_geojson(feature_id: int, new_geometry: dict):
 
 
 # Add a brand new feature (e.g. a polygon drawn on the map)
-def add_feature_geojson(new_feature: dict):
+def add_feature_geojson(session_id: str, new_feature: dict):
 
-    data = get_dataset()
+    data = get_dataset(session_id)
 
     # Check the new feature has a geometry
     geometry = new_feature.get("geometry")
@@ -64,9 +64,9 @@ def add_feature_geojson(new_feature: dict):
 
 
 # Replace the attribute table (properties) of a feature
-def update_properties_geojson(feature_id: int, new_properties: dict):
+def update_properties_geojson(session_id: str, feature_id: int, new_properties: dict):
 
-    data = get_dataset()
+    data = get_dataset(session_id)
     features = data["features"]
 
     # Check the feature_id is within range

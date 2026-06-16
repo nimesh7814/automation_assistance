@@ -1,22 +1,28 @@
-from fastapi import HTTPException
+from typing import Annotated
+from fastapi import HTTPException, Header
 
-# Keep the GeoJSON for the duration of the session.
-geojson_dataset = {"data": None}
+# Per-session storage: maps session_id -> {"data": geojson | None}
+_sessions: dict[str, dict] = {}
 
 
-# Return the current GeoJSON data in the session
-def get_dataset():
+def get_session_id(x_session_id: Annotated[str | None, Header()] = None) -> str:
+    if not x_session_id:
+        raise HTTPException(status_code=400, detail="Missing X-Session-ID header.")
+    return x_session_id
 
-    data = geojson_dataset["data"]
+
+def get_dataset(session_id: str) -> dict:
+    data = _sessions.get(session_id, {}).get("data")
     if data is None:
         raise HTTPException(status_code=404, detail="No GeoJSON data in session. Upload first.")
-
     return data
 
 
-# Remove the GeoJSON data from the session
-def clear_geojson():
+def set_dataset(session_id: str, data: dict) -> None:
+    _sessions.setdefault(session_id, {})["data"] = data
 
-    geojson_dataset["data"] = None
 
+def clear_geojson(session_id: str) -> dict:
+    if session_id in _sessions:
+        _sessions[session_id]["data"] = None
     return {"message": "Session data cleared."}

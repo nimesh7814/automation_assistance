@@ -1,6 +1,7 @@
 # Import Libraries
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Query
+from typing import Annotated
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -8,7 +9,7 @@ from fastapi.responses import JSONResponse
 from functions.upload_input import upload_geojson
 from functions.validate_fix import validate_geometry, fix_geojson
 from functions.duplicates import detect_duplicates
-from functions.session import clear_geojson
+from functions.session import clear_geojson, get_session_id
 from functions.edit_geometry_attribute import (update_geometry_geojson, add_feature_geojson, update_properties_geojson)
 from functions.delete_feature import delete_feature_geojson
 from functions.export import export as export_func
@@ -31,6 +32,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+SessionID = Annotated[str, Depends(get_session_id)]
 
 
 # Log every request with its outcome status code.
@@ -71,61 +74,62 @@ async def unhandled_exception_handler(request: Request, _exc: Exception):
 
 # Upload & Input the GeoJSON Data
 @app.post("/upload/file")
-async def upload_file(file: UploadFile = File(...)):
-    return await upload_geojson(file)
+async def upload_file(session_id: SessionID, file: UploadFile = File(...)):
+    return await upload_geojson(file, session_id)
 
 
 # Validation of the GeoJSON Data
 @app.get("/validate")
-def validate():
-    return validate_geometry()
+def validate(session_id: SessionID):
+    return validate_geometry(session_id)
 
 @app.post("/fix")
-def fix():
-    return fix_geojson()
+def fix(session_id: SessionID):
+    return fix_geojson(session_id)
 
 
 # Features of Given GeoJSON File
 @app.get("/features")
-def get_all_features():
-    return fetch_all()
+def get_all_features(session_id: SessionID):
+    return fetch_all(session_id)
 
 
 # Find Duplicate Geometries
 @app.get("/duplicates")
 def get_duplicates(
+    session_id: SessionID,
     remove_duplicates: bool = Query(default=False),
     duplicate_threshold: float = Query(default=0.99, ge=0.0, le=1.0),):
-    return detect_duplicates(remove_duplicates, duplicate_threshold)
+    return detect_duplicates(session_id, remove_duplicates, duplicate_threshold)
 
 
 # Edit Geometry of a Given Feature
 @app.put("/features/{feature_id}/geometry")
-async def update_geometry(feature_id: int, body: dict):
-    return update_geometry_geojson(feature_id, body.get("geometry"))
+async def update_geometry(feature_id: int, body: dict, session_id: SessionID):
+    return update_geometry_geojson(session_id, feature_id, body.get("geometry"))
 
 @app.put("/features/{feature_id}/properties")
-async def update_properties(feature_id: int, body: dict):
-    return update_properties_geojson(feature_id, body)
+async def update_properties(feature_id: int, body: dict, session_id: SessionID):
+    return update_properties_geojson(session_id, feature_id, body)
 
 @app.post("/features")
-async def add_feature(body: dict):
-    return add_feature_geojson(body)
+async def add_feature(body: dict, session_id: SessionID):
+    return add_feature_geojson(session_id, body)
 
 
 # Delete a Given Feature
 @app.delete("/features/{feature_id}")
-async def delete_feature(feature_id: int):
-    return delete_feature_geojson(feature_id)
+async def delete_feature(feature_id: int, session_id: SessionID):
+    return delete_feature_geojson(session_id, feature_id)
 
 
 # Export the final GeoJSON File
 @app.get("/export")
-def export():
-    return export_func()
+def export(session_id: SessionID):
+    return export_func(session_id)
 
 
 # Clear the Imported GeoJSON Data
 @app.delete("/data")
-def session_reset():
-    return clear_geojson()
+def session_reset(session_id: SessionID):
+    return clear_geojson(session_id)
