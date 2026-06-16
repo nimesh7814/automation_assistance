@@ -47,9 +47,7 @@ or start the whole stack (API + Streamlit UI) with `docker compose up --build`.
 | Method | Path | Description |
 | --- | --- | --- |
 | `POST` | `/upload/file` | Upload a `.geojson` file (multipart form, field name `file`). |
-| `POST` | `/upload/text` | Upload a GeoJSON object directly as the JSON body. |
 | `GET` | `/features` | Return all features currently in the session. |
-| `GET` | `/features/{id}` | Return a single feature by index. |
 | `GET` | `/validate` | Check the geometries for structural and topology issues. |
 | `POST` | `/fix` | Try to automatically repair invalid/problematic geometries. |
 | `GET` | `/duplicates?remove_duplicates=false` | Find geometries that are identical to another one. Pass `true` to delete the duplicates. |

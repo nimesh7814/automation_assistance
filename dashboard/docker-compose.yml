@@ -7,10 +7,10 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
-  ui-streamlit:
+  ui:
     build:
       context: .
-      dockerfile: ui-streamlit/Dockerfile
+      dockerfile: ui/Dockerfile
     environment:
       API_BASE_URL: http://api:8000
     ports:

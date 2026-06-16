@@ -5,14 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # Import functions from functions folder
-from functions.upload_input import upload_geojson, text_geojson
+from functions.upload_input import upload_geojson
 from functions.validate_fix import validate_geometry, fix_geojson
 from functions.duplicates import detect_duplicates
 from functions.session import clear_geojson
 from functions.edit_geometry_attribute import (update_geometry_geojson, add_feature_geojson, update_properties_geojson)
 from functions.delete_feature import delete_feature_geojson
 from functions.export import export as export_func
-from functions.get_feature import fetch_all, get_single_feature
+from functions.get_feature import fetch_all
 
 # Basic logging setup (console)
 logging.basicConfig(
@@ -74,10 +74,6 @@ async def unhandled_exception_handler(request: Request, _exc: Exception):
 async def upload_file(file: UploadFile = File(...)):
     return await upload_geojson(file)
 
-@app.post("/upload/text")
-async def upload_text(body: dict):
-    return text_geojson(body)
-
 
 # Validation of the GeoJSON Data
 @app.get("/validate")
@@ -93,10 +89,6 @@ def fix():
 @app.get("/features")
 def get_all_features():
     return fetch_all()
-
-@app.get("/features/{feature_id}")
-def get_feature_by_id(feature_id: int):
-    return get_single_feature(feature_id)
 
 
 # Find Duplicate Geometries

@@ -11,8 +11,8 @@ tailored to this workflow.
 
 | Folder | What it is | Default URL |
 | --- | --- | --- |
-| [`api/`](api/README.md) | FastAPI backend - validation, editing, undo/redo, export | http://localhost:8000 |
-| [`ui-streamlit/`](ui-streamlit/README.md) | Streamlit dashboard | http://localhost:8501 |
+| [`api/`](api/README.md) | FastAPI backend - validation, editing, export | http://localhost:8000 |
+| [`ui/`](ui/README.md) | Streamlit dashboard | http://localhost:8501 |
 
 The UI talks to the **same API** and the **same in-memory session**.
 There is no database and no user accounts - this is a single-session
@@ -39,7 +39,7 @@ To run just one service, e.g. `docker compose up --build api`.
 Each part can also be run directly - see its README for setup steps:
 
 1. [`api/README.md`](api/README.md) - start this first.
-2. [`ui-streamlit/README.md`](ui-streamlit/README.md).
+2. [`ui/README.md`](ui/README.md).
 
 ## Try it with sample data
 
@@ -60,6 +60,6 @@ the UI to try out the map, table, validation and export features.
   with an automatic fix option.
 - **Edit** the data: draw new polygons, edit existing geometries,
   delete features, and edit attribute values.
-- **Undo/redo** changes and **export** the result as `.geojson`.
+- **Export** the result as `.geojson`.
 - **Error logging** - the API logs requests and unexpected errors to
   the console, and always returns a friendly error message to the UI.

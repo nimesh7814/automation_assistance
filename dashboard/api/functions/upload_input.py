@@ -15,13 +15,6 @@ async def upload_geojson(file: UploadFile) -> dict:
     filtered = filter_geometries(data, feature_issues)
     return process_geojson(data, filtered)
 
-# Text upload
-def text_geojson(raw: dict) -> dict:
-    contents = json.dumps(raw).encode("utf-8")
-    data, feature_issues = parse_and_validate(contents)
-    filtered = filter_geometries(data, feature_issues)
-    return process_geojson(data, filtered)
-
 # Parse the uploaded bytes as JSON and check the GeoJSON structure
 def parse_and_validate(contents: bytes) -> tuple[dict, dict]:
 
