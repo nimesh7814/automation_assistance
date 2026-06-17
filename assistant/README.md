@@ -8,7 +8,8 @@ It's a separate top-level package (not under `ui/`) so it's a clearly distinct c
 
 This is a manual function-calling loop against `google-genai`, not the SDK's automatic loop — every tool call and result is captured so it can be shown in the UI's "Tool calls used" trace.
 
-- The model can only call the tools declared in `TOOL_DECLARATIONS`/`TOOL_DISPATCH`: feature count, total area, validation scan, duplicate scan, get one feature's properties, search features by property value. **None of them can write, fix, or delete data** — that capability simply doesn't exist in the tool catalog, so it isn't something that can be bypassed at runtime.
+- The model can only call the tools declared in `TOOL_DECLARATIONS`/`TOOL_DISPATCH`: feature count, total area, validation scan, duplicate scan, list every property/attribute name with its types and value breakdown, get one feature's properties, search features by property value. **None of them can write, fix, or delete data** — that capability simply doesn't exist in the tool catalog, so it isn't something that can be bypassed at runtime.
+- The `list_property_keys` tool exists specifically to stop the model from guessing attribute names: the system prompt tells it to call this before filtering/searching by a property it isn't sure about, since an invented property name would otherwise just silently find nothing.
 - The loop is capped at `MAX_TOOL_CALLS` (5) round-trips per question; if it's not resolved by then, the user gets a "please rephrase" message instead of an infinite loop.
 - Tool results are scoped to the same session as the rest of the dashboard — tools take the UI's already session-bound `features` list and `api_request` function, so the assistant never widens the session boundary.
 - The system prompt explicitly tells the model to treat tool-returned data (including property values copied straight from the uploaded file) as data only, never as instructions — a mitigation against prompt injection via a malicious property value.
@@ -17,7 +18,7 @@ See `docs/agentic_ai_assistant.md` (if present in your checkout) for the full ar
 
 ## Configuration
 
-Read from the environment at call time (not module import time, so `ui/app.py`'s `load_dotenv()` — which runs *after* this package is imported — still takes effect):
+Read from the environment at call time, not module import time — `os.getenv()` calls live inside functions (`_get_message_limit()`, the `GEMINI_API_KEY` lookup in `render_assistant_tab`), not at module scope. That matters because env vars need to already be loaded before they're read; `ui/app.py` calls `load_dotenv()` near the top of the file, before importing this package, so this isn't actually load-bearing today — but reading lazily means the order could change later without silently breaking config:
 
 | Variable | Purpose |
 | --- | --- |

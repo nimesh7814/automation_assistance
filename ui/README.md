@@ -56,3 +56,8 @@ All tabs share `st.session_state["features"]` as the locally cached copy of what
 ## Logging
 
 Each module gets its own child logger (`geojson_dashboard.ui.*`) logging key actions — uploads, edits, deletes, exports, every `api_request()` call's outcome — to console, visible via `docker compose logs ui`.
+
+## Limitations
+
+- **Streamlit can feel slow.** Every click reruns the whole script top-to-bottom (that's how Streamlit works, not a bug specific to this app), so on larger datasets there's a noticeable pause after every interaction — there's no partial/async update, the map and tables redraw fully each time.
+- **Only the selected feature is editable on the map.** The Edit tab's map only loads the currently-selected feature (shown in blue) into the draggable Draw layer — every other visible feature is read-only on the map. To reshape a different already-drawn feature, you have to select it first (check its row in the feature list) before its vertices become draggable; you can't grab any random polygon's vertex straight off the map.

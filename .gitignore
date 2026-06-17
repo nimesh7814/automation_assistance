@@ -1,6 +1,7 @@
 .venv
 __pycache__/
 *.log
+*.tar
 logs/
 .env
 *.tmp
@@ -10,3 +11,4 @@ Thumbs.db
 docs
 CLAUDE.md
 .ruff_cache
+sample_data

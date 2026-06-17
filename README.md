@@ -2,38 +2,78 @@
 
 **Live demo:** [http://geojson.akalanka.me](http://geojson.akalanka.me)
 
-A small dashboard for working with GeoJSON polygon data: upload a file, view it on a map and in a table, check for problems (invalid/duplicate geometries), edit it, export the result, and ask a Gemini-powered assistant questions about the loaded data.
+A dashboard for working with GeoJSON polygon data: upload a file, view it on a map and in a table, check for problems (invalid/duplicate geometries), edit it, export the result, and ask a Gemini-powered assistant questions about the loaded data.
 
 Two services, no database, no auth — each browser session gets its own in-memory dataset on the API, scoped by an `X-Session-ID` header. A session's data is dropped automatically after 30 minutes of inactivity (configurable via `SESSION_TTL_MINUTES`) so abandoned sessions don't grow memory unbounded.
 
-| Folder       | What it is                                                       | Default URL                             | README                          |
-| ------------ | ----------------------------------------------------------------- | ---------------------------------------- | -------------------------------- |
-| `api/`       | FastAPI backend — upload, validate, edit, export                  | http://localhost:8000 (docs at `/docs`) | [api/README.md](api/README.md) |
-| `ui/`        | Streamlit dashboard (the only frontend that currently exists)     | http://localhost:8501                   | [ui/README.md](ui/README.md)   |
-| `assistant/` | Gemini function-calling assistant, rendered as the UI's last tab  | n/a — imported by `ui/app.py`           | [assistant/README.md](assistant/README.md) |
+| Folder       | What it is                | Default URL                             | README                                     |
+| ------------ | ------------------------- | --------------------------------------- | ------------------------------------------ |
+| `api/`       | FastAPI backend           | http://localhost:8000 (docs at `/docs`) | [api/README.md](api/README.md)             |
+| `ui/`        | Streamlit dashboard       | http://localhost:8501                   | [ui/README.md](ui/README.md)               |
+| `assistant/` | Gemini based AI assistant | imported by `ui/app.py`                 | [assistant/README.md](assistant/README.md) |
 
-## Quick start (Docker)
+## Getting started
 
-```bash
-docker compose up --build -d      # both services
-docker compose logs ui --tail 50  # check for startup errors
-docker compose down
-```
-
-- API: http://localhost:8000/docs
-- UI: http://localhost:8501
-- Logs (Dozzle): http://localhost:8888
-
-The Assistant tab needs a `GEMINI_API_KEY` — copy `ui/.env.example` to `ui/.env` and fill it in before building, or the tab will show a notice and the rest of the dashboard works normally. See [assistant/README.md](assistant/README.md) for details.
-
-## Running without Docker
+### 1. Get the code
 
 ```bash
-cd api && pip install -r requirements.txt && uvicorn main:app --reload --port 8000
-cd ui  && pip install -r requirements.txt && streamlit run app.py
+git clone https://github.com/nimesh7814/automation_assistance.git
+cd automation_assistance
 ```
 
-When running the UI directly on the host, set `API_BASE_URL=http://localhost:8000` in `ui/.env` (it's `http://api:8000` under Docker Compose — see [ui/README.md](ui/README.md)).
+### 2. Get a free Gemini API key (optional)
+
+Only needed for the Assistant tab — every other tab works fine without it.
+
+1. Go to https://aistudio.google.com/apikey and sign in with a Google account.
+2. Click "Create API key" and copy it (it's free on the tier this app needs).
+3. Copy the example env file and paste your key in:
+
+   ```bash
+   cp ui/.env.example ui/.env
+   ```
+
+   Then open `ui/.env` and set:
+
+   ```
+   GEMINI_API_KEY=paste-your-key-here
+   ```
+
+   Skip this step entirely if you don't want the Assistant tab — the rest of the dashboard works normally either way.
+
+### 3. Run it
+
+**Option A — with Docker (Recommended):**
+
+```bash
+# Run the Application detached mode
+docker compose up -d
+
+# Remove the Application
+docker compose down -v
+```
+
+| Service | URL                   | Notes                                      |
+| ------- | --------------------- | ------------------------------------------ |
+| UI      | http://localhost:8501 | main dashboard                             |
+| API     | http://localhost:8000 | docs at `/docs`                            |
+| Logs    | http://localhost:8888 | live view of the `api`/`ui` container logs |
+
+**Option B — without Docker (run each service yourself, in two terminals):**
+
+```bash
+# terminal 1 — API
+cd api
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# terminal 2 — UI
+cd ui
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Start the API first — the UI works even if the API is briefly unreachable (it shows an "API offline" badge and a retry button), but nothing useful happens until the API is actually up. When running this way, `ui/.env`'s `API_BASE_URL` should be `http://localhost:8000` (it's only `http://api:8000` under Docker Compose, where `api` is the other container's hostname).
 
 ## Logs
 

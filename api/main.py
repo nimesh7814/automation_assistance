@@ -1,14 +1,14 @@
 # Import Libraries
 import asyncio
-import logging
-import os
-import sys
+import time
 from contextlib import asynccontextmanager
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from loguru import logger
+from functions.logging import configure_logging, log_request, logger
+
+configure_logging()
 
 # Import functions from functions folder
 from functions.upload_input import upload_geojson
@@ -20,47 +20,6 @@ from functions.delete_feature import delete_feature_geojson
 from functions.export import export as export_func
 from functions.get_feature import fetch_all
 from functions.stats import get_area_summary
-
-
-class InterceptHandler(logging.Handler):
-    """Routes stdlib `logging` records (uvicorn's own logs, functions/session.py's
-    sweep logger, etc.) into loguru so everything ends up on the same sinks."""
-
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            level = logger.level(record.levelname).name
-        except ValueError:
-            level = record.levelno
-
-        frame, depth = logging.currentframe(), 2
-        while frame and frame.f_code.co_filename == logging.__file__:
-            frame = frame.f_back
-            depth += 1
-
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
-
-
-# Logging setup: console (visible via `docker compose logs` / Dozzle) plus a
-# rotating file under LOG_DIR, bind-mounted to a host folder in
-# docker-compose.yml so logs survive container removal, not just restarts.
-LOG_DIR = os.getenv("LOG_DIR", "logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-
-logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO, force=True)
-for uvicorn_logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
-    uvicorn_logger = logging.getLogger(uvicorn_logger_name)
-    uvicorn_logger.handlers = [InterceptHandler()]
-    uvicorn_logger.propagate = False
-
-logger.remove()
-logger.add(sys.stderr, level="INFO", format="{time:YYYY-MM-DD HH:mm:ss} [{level}] {message}")
-logger.add(
-    os.path.join(LOG_DIR, "api.log"),
-    level="INFO",
-    rotation="5 MB",
-    retention=3,
-    format="{time:YYYY-MM-DD HH:mm:ss} [{level}] {message}",
-)
 
 
 @asynccontextmanager
@@ -87,8 +46,10 @@ SessionID = Annotated[str, Depends(get_session_id)]
 # Log every request with its outcome status code.
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    start_time = time.perf_counter()
     response = await call_next(request)
-    logger.info(f"{request.method} {request.url.path} -> {response.status_code}")
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    log_request(request.method, request.url.path, response.status_code, duration_ms)
     return response
 
 

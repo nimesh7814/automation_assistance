@@ -1,4 +1,23 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: geojson-viewer:latest
+    env_file:
+      - path: ./ui/.env
+        required: false
+    environment:
+      - API_BASE_URL=http://127.0.0.1:8000
+      - SESSION_TTL_MINUTES=30
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./logs/app:/app/logs
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    restart: unless-stopped
+
   api:
     build:
       context: .
