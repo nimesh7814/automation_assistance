@@ -14,8 +14,13 @@ A Streamlit dashboard for the API in `../api/`. Upload a GeoJSON file, then walk
 ## Running locally
 
 ```bash
+# Go into the downloaded directory
 cd ui
+
+# Install the requirements
 pip install -r requirements.txt
+
+# Run the Streamlit application
 streamlit run app.py
 ```
 
@@ -26,7 +31,10 @@ Requires the API to be reachable (default `http://localhost:8000` — set in `.e
 From the repo root:
 
 ```bash
-docker compose up --build -d ui   # rebuild/restart just the UI
+# rebuild/restart just the UI
+docker compose up --build -d ui
+
+# See the logs of the UI
 docker compose logs ui --tail 50
 ```
 
@@ -36,11 +44,11 @@ docker compose logs ui --tail 50
 
 Copy `.env.example` to `.env` and fill in:
 
-| Variable | Purpose |
-| --- | --- |
-| `GEMINI_API_KEY` | Required for the Assistant tab. Without it, that tab shows a notice and the rest of the dashboard works normally. Get a free-tier key at https://aistudio.google.com/apikey. |
-| `LIMIT` | Per-session message cap for the assistant (default `100`). |
-| `API_BASE_URL` | Where the UI looks for the API. `http://api:8000` under Docker Compose (container-to-container DNS — `localhost` inside the `ui` container is the `ui` container itself), `http://localhost:8000` when running the UI directly on the host. |
+| Variable         | Purpose                                                                                                                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY` | Required for the Assistant tab. Without it, that tab shows a notice and the rest of the dashboard works normally. Get a free-tier key at https://aistudio.google.com/apikey.                                                                |
+| `LIMIT`          | Per-session message cap for the assistant (default `100`).                                                                                                                                                                                  |
+| `API_BASE_URL`   | Where the UI looks for the API. `http://api:8000` under Docker Compose (container-to-container DNS — `localhost` inside the `ui` container is the `ui` container itself), `http://localhost:8000` when running the UI directly on the host. |
 
 `.env` is loaded via `python-dotenv` and is git-ignored — never commit your real key.
 

@@ -30,6 +30,11 @@ Read from the environment at call time, not module import time — `os.getenv()`
 
 `google.genai.errors.APIError` is caught specifically (to surface `code`/`status`/`message`) with a generic `Exception` fallback; both show `st.error` with the real error. Backend tool-call errors (e.g. a failed `/validate` call) surface as `st.warning` in addition to appearing in the collapsed tool-call trace — a failed tool never crashes the chat loop.
 
+## Limitations
+
+- **Read-only, not a workflow driver.** The assistant can answer questions about the data but can't act on it — there's no way to ask it to "fix everything auto-fixable" or "remove duplicates above 0.95" and have it actually do that. A write-capable version would need its own tool set plus an explicit per-action confirmation step before anything touches the session data.
+- **Risk/mitigation notes are scattered, not consolidated.** The prompt-injection mitigation (treating tool output as data, not instructions), the `MAX_TOOL_CALLS` cap, and the read-only tool catalog are each documented inline (this README, docstrings, code comments) rather than collected into one production-readiness write-up with a full risk register.
+
 ## Packaging
 
 Shipped as part of the `ui` Docker image: `ui/Dockerfile` has a `COPY assistant/ ./assistant/` step alongside `COPY ui/ ./`, so this package ends up next to `ui/app.py` inside the container. Its dependencies (`streamlit`, `google-genai`) live in `ui/requirements.txt`, not a requirements file of its own. When running the UI directly on the host (`cd ui && streamlit run app.py`), `ui/app.py` inserts the repo root onto `sys.path` before importing this package, since `assistant/` otherwise wouldn't be on Python's import path from inside `ui/`.

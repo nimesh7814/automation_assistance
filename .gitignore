@@ -11,4 +11,8 @@ Thumbs.db
 docs
 CLAUDE.md
 .ruff_cache
-sample_data
+sample_data\all_errors_combined.geojson
+sample_data\invalid_missing_properties.geojson
+sample_data\invalid_missing_geometry.geojson
+sample_data\Test_Farm.geojson
+sample_data\valid_farm.geojson
