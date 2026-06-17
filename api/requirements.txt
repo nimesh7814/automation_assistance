@@ -5,3 +5,4 @@ shapely
 geojson_validator
 geojson
 pyproj
+loguru

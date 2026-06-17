@@ -8,6 +8,7 @@ Every request must include an `X-Session-ID` header (the UI generates and persis
 
 - Restarting the API process loses all sessions' data.
 - Two different `X-Session-ID` values never see or edit each other's data.
+- A session is also dropped automatically if it's idle (no API call at all, not just no upload) for longer than `SESSION_TTL_MINUTES` (default 30). A background sweep (`sweep_idle_sessions` in `functions/session.py`, started from `main.py`'s `lifespan`) checks every 60 seconds and evicts anything past that idle threshold, so memory doesn't grow unbounded with abandoned sessions. Calling any endpoint resets that session's idle timer.
 
 Only `Polygon` and `MultiPolygon` features are kept. Anything else (points, lines, etc.) is dropped on upload and reported in the upload summary.
 
@@ -64,7 +65,7 @@ Validation and auto-fix are powered by the [`geojson_validator`](https://github.
 
 ## Logging
 
-Requests and unexpected errors are logged to the console (visible with `docker compose logs api`). Any error that isn't already a handled `HTTPException` is logged with a full traceback and returns a generic `500` message to the client, so internal details are never leaked to the UI.
+Requests and unexpected errors are logged to the console (visible with `docker compose logs api` or via Dozzle — see the root README) and to a rotating file under `LOG_DIR` (default `logs`, bind-mounted to `../logs/api` on the host by `docker-compose.yml`, so they survive container removal/rebuilds, not just restarts). Any error that isn't already a handled `HTTPException` is logged with a full traceback and returns a generic `500` message to the client, so internal details are never leaked to the UI.
 
 ## Sample data
 

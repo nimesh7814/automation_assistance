@@ -9,7 +9,9 @@ import streamlit as st
 
 logger = logging.getLogger("geojson_dashboard.ui.api")
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
+
+def api_base_url() -> str:
+    return os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 
 
 class APIError(Exception):
@@ -38,14 +40,14 @@ def api_request(method: str, path: str, raw: bool = False, **kwargs) -> Any:
     try:
         response = requests.request(
             method,
-            f"{API_BASE_URL}{path}",
+            f"{api_base_url()}{path}",
             headers={**session_headers(), **kwargs.pop("headers", {})},
             timeout=30,
             **kwargs,
         )
     except requests.RequestException as exc:
         logger.warning("%s %s -> connection failed: %s", method, path, exc)
-        raise APIError(f"Cannot reach the API at {API_BASE_URL}.") from exc
+        raise APIError(f"Cannot reach the API at {api_base_url()}.") from exc
 
     if response.status_code >= 400:
         try:

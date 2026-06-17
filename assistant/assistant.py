@@ -32,6 +32,10 @@ provided tools - never guess, estimate, or invent feature counts, areas, IDs, or
 property values. If a tool returns no data or an error, say so plainly instead of
 making something up.
 
+If you need to filter or look up by a property/attribute name and you are not
+certain of its exact spelling or values, call list_property_keys first instead
+of guessing - an invented property name will simply find nothing.
+
 You cannot edit, delete, fix, or otherwise modify the loaded data. If the user
 asks you to change something (fix a geometry, remove a duplicate, delete or edit
 a feature), explain that you can't do that here and point them to the Validate,
@@ -69,6 +73,47 @@ def _tool_run_duplicate_scan(_features, api_request, duplicate_threshold: float 
     )
 
 
+def _tool_list_property_keys(features, _api_request):
+    fields: dict[str, dict] = {}
+    for feature in features:
+        props = feature.get("properties") or {}
+        for key, value in props.items():
+            info = fields.setdefault(key, {"types": set(), "values": {}, "null_count": 0, "non_null_count": 0})
+            if value is None:
+                info["null_count"] += 1
+                continue
+            info["non_null_count"] += 1
+            info["types"].add(type(value).__name__)
+            value_key = str(value)
+            info["values"][value_key] = info["values"].get(value_key, 0) + 1
+
+    properties = []
+    for key, info in fields.items():
+        distinct_values = sorted(info["values"].items(), key=lambda item: -item[1])
+        entry = {
+            "property_name": key,
+            "data_types": sorted(info["types"]),
+            "non_null_count": info["non_null_count"],
+            "null_count": info["null_count"],
+            "distinct_value_count": len(distinct_values),
+        }
+        # Full breakdown when the field is low-cardinality (e.g. a category), otherwise
+        # only a sample - "sample_values" vs "distinct_values" tells the model whether
+        # this list is the complete set of values or a partial one.
+        if len(distinct_values) <= 20:
+            entry["distinct_values"] = [{"value": v, "count": c} for v, c in distinct_values]
+        else:
+            entry["sample_values"] = [v for v, _ in distinct_values[:5]]
+        properties.append(entry)
+
+    properties.sort(key=lambda entry: entry["property_name"])
+    return {
+        "total_features": len(features),
+        "property_count": len(properties),
+        "properties": properties,
+    }
+
+
 def _tool_get_feature_properties(features, _api_request, feature_id):
     feature_id = int(feature_id)
     if feature_id < 0 or feature_id >= len(features):
@@ -96,6 +141,7 @@ TOOL_DISPATCH = {
     "get_total_area_hectares": _tool_get_total_area_hectares,
     "run_validation_scan": _tool_run_validation_scan,
     "run_duplicate_scan": _tool_run_duplicate_scan,
+    "list_property_keys": _tool_list_property_keys,
     "get_feature_properties": _tool_get_feature_properties,
     "search_features_by_property": _tool_search_features_by_property,
 }
@@ -128,6 +174,17 @@ TOOL_DECLARATIONS = [
                 ),
             },
         ),
+    ),
+    types.FunctionDeclaration(
+        name="list_property_keys",
+        description=(
+            "List every attribute/property name found across the loaded features, with its data "
+            "type(s), null/non-null counts, and either the full set of distinct values (for "
+            "low-cardinality fields) or a small sample (for high-cardinality ones). Call this "
+            "before search_features_by_property if you don't already know the exact property "
+            "name and values - never guess a property name."
+        ),
+        parameters=types.Schema(type="OBJECT", properties={}),
     ),
     types.FunctionDeclaration(
         name="get_feature_properties",

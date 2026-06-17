@@ -1,9 +1,14 @@
 import logging
+import os
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # Lets `from assistant import render_assistant_tab` resolve when running
 # `streamlit run app.py` directly from ui/ (host dev); in Docker /app already
@@ -20,15 +25,20 @@ from tabs.export import render_export_tab
 from tabs.upload import render_upload_tab
 from tabs.validate import render_validate_tab
 
+# Console (visible via `docker compose logs ui` / Dozzle) plus a rotating file
+# under LOG_DIR, bind-mounted to a host folder in docker-compose.yml so logs
+# survive container removal, not just restarts.
+LOG_DIR = os.getenv("LOG_DIR", "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(os.path.join(LOG_DIR, "ui.log"), maxBytes=5_000_000, backupCount=3),
+    ],
 )
 logger = logging.getLogger("geojson_dashboard.ui")
-
-# Loads GEMINI_API_KEY (and any other local overrides) from ui/.env when
-# running the UI directly; in Docker these are already set via env_file.
-load_dotenv()
 
 st.set_page_config(
     page_title="GeoJSON Tool",
@@ -78,7 +88,7 @@ st.markdown(
 )
 
 init_session()
-probe_health()  # sets health_ok in session_state before sidebar reads it
+probe_health()
 
 with st.sidebar:
     st.title(":material/map: GeoJSON Tool")

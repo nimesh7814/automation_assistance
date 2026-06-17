@@ -1,6 +1,7 @@
 .venv
 __pycache__/
 *.log
+logs/
 .env
 *.tmp
 .DS_Store
@@ -8,3 +9,4 @@ Thumbs.db
 .claude
 docs
 CLAUDE.md
+.ruff_cache

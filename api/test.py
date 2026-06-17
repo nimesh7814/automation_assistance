@@ -1,20 +1,10 @@
-import geopandas as gpd
+import geojson
 
-input_file = r"D:\Work\Github\automation_assistance\dashboard\data\Farm_file.geojson"
-gdf = gpd.read_file(input_file)
+data = r"D:\Work\Github\automation_assistance\sample_data\Test_Farm.geojson"
 
-print("Original features:", len(gdf))
+try:
+    with open(data, 'r', encoding="utf-8") as f:
+        geojson_data = geojson.load(f)
 
-gdf["wkt"] = gdf.geometry.apply(lambda x: x.wkt)
-gdf = gdf.drop_duplicates(subset="wkt").drop(columns=["wkt"])
-
-print("After exact duplicate removal:", len(gdf))
-
-gdf["geometry"] = gdf.geometry.simplify(tolerance=0.01, preserve_topology=True)
-
-gdf["wkt"] = gdf.geometry.apply(lambda x: x.wkt)
-gdf = gdf.drop_duplicates(subset="wkt").drop(columns=["wkt"])
-
-print("After simplification + duplicate removal:", len(gdf))
-
-gdf.to_file("cleaned_example.geojson", driver="GeoJSON")
+except Exception as e:
+    print(f"Error: {e}")
