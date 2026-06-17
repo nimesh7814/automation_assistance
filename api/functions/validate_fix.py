@@ -1,4 +1,3 @@
-import math
 import geojson_validator
 from shapely.geometry import Polygon, shape
 from shapely.errors import TopologicalError
@@ -19,7 +18,6 @@ CRITERIA_INVALID = {
     "hole_outside": "Interior ring (hole) lies outside the exterior boundary",
 }
 
-CRITERIA_LIST = list(CRITERIA_INVALID.keys())
 VALIDATOR_CRITERIA = [
     "unclosed",
     "less_three_unique_nodes",

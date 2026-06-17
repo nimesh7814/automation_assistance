@@ -72,6 +72,7 @@ async def unhandled_exception_handler(request: Request, _exc: Exception):
         content={"message": "Something went wrong while processing your request.", "errors": []},
     )
 
+
 # Health checkpoint
 @app.get("/")
 def health_check():
