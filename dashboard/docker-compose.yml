@@ -11,8 +11,6 @@ services:
     build:
       context: .
       dockerfile: ui/Dockerfile
-    environment:
-      API_BASE_URL: http://api:8000
     env_file:
       - path: ./ui/.env
         required: false

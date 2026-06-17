@@ -10,12 +10,21 @@ import os
 
 import streamlit as st
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 logger = logging.getLogger("geojson_dashboard.assistant")
 
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 MAX_TOOL_CALLS = 5
+
+
+def _get_message_limit() -> int:
+    """Read the per-session message cap from the LIMIT env var (set via .env)."""
+    try:
+        return int(os.getenv("LIMIT", "100"))
+    except ValueError:
+        return 100
 
 SYSTEM_INSTRUCTION = """
 You are a read-only data assistant embedded in a GeoJSON farm-boundary dashboard.
@@ -221,6 +230,14 @@ def _render_tool_trace(tool_trace: list[dict]) -> None:
             st.json(call["result"])
 
 
+def _tool_errors(tool_trace: list[dict]) -> list[str]:
+    return [
+        f"{call['name']}: {call['result']['error']}"
+        for call in tool_trace
+        if isinstance(call.get("result"), dict) and call["result"].get("error")
+    ]
+
+
 # ─── Streamlit tab ──────────────────────────────────────────────────────────
 
 def render_assistant_tab(features: list[dict], api_request) -> None:
@@ -246,15 +263,30 @@ def render_assistant_tab(features: list[dict], api_request) -> None:
         return
 
     messages = st.session_state.setdefault("ai_messages", [])
+    sent_count = st.session_state.setdefault("ai_sent_count", 0)
+    message_limit = _get_message_limit()
 
     for message in messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             _render_tool_trace(message.get("tool_trace", []))
 
-    question = st.chat_input("e.g. How many geometries are there? What's the total area in hectares?")
+    limit_reached = sent_count >= message_limit
+    if limit_reached:
+        st.warning(
+            f"This session has reached the {message_limit}-message limit "
+            "for the assistant. Clear the session (sidebar) to start a new conversation.",
+            icon=":material/block:",
+        )
+
+    question = st.chat_input(
+        "e.g. How many geometries are there? What's the total area in hectares?",
+        disabled=limit_reached,
+    )
     if not question:
         return
+
+    st.session_state["ai_sent_count"] = sent_count + 1
 
     messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
@@ -269,12 +301,22 @@ def render_assistant_tab(features: list[dict], api_request) -> None:
     ]
 
     with st.chat_message("assistant"):
+        tool_trace: list[dict] = []
         try:
             client = genai.Client(api_key=api_key)
             answer, tool_trace = _ask(client, contents, features, api_request)
-        except Exception:
+        except genai_errors.APIError as exc:
+            logger.exception("Assistant API request failed")
+            st.error(f"Assistant API error ({exc.code} {exc.status}): {exc.message}", icon=":material/error:")
+            answer = "Sorry, the assistant API returned an error. Please try again shortly."
+        except Exception as exc:
             logger.exception("Assistant request failed")
-            answer, tool_trace = "Sorry, the assistant is temporarily unavailable. Please try again shortly.", []
+            st.error(f"Assistant request failed: {exc}", icon=":material/error:")
+            answer = "Sorry, the assistant is temporarily unavailable. Please try again shortly."
+
+        for err in _tool_errors(tool_trace):
+            st.warning(f"A data lookup failed: {err}", icon=":material/warning:")
+
         st.markdown(answer)
         _render_tool_trace(tool_trace)
 

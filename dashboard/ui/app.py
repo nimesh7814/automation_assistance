@@ -172,6 +172,12 @@ def clear_data() -> None:
         "file_name",
         "focus_feature_id",
         "ai_messages",
+        "ai_sent_count",
+        "feat_list",
+        "_prev_visible_ids",
+        "edit_map_view",
+        "upload_focus_id",
+        "upload_feat_list",
     ]:
         st.session_state.pop(key, None)
     # Issue a fresh session ID and embed it in the URL so the next refresh
@@ -212,10 +218,13 @@ def collect_geometry_points(geometry: dict) -> list[list[float]]:
     return points
 
 
-def update_map_bounds(features: list[dict], focus_id: int | None = None) -> dict:
+def update_map_bounds(features: list[dict], focus_id: int | set[int] | list[int] | None = None) -> dict:
     points = []
-    if focus_id is not None and 0 <= focus_id < len(features):
-        points = collect_geometry_points(features[focus_id].get("geometry") or {})
+    if focus_id is not None:
+        ids = [focus_id] if isinstance(focus_id, int) else list(focus_id)
+        for fid in ids:
+            if 0 <= fid < len(features):
+                points.extend(collect_geometry_points(features[fid].get("geometry") or {}))
     if not points:
         for f in features:
             points.extend(collect_geometry_points(f.get("geometry") or {}))
@@ -286,7 +295,11 @@ def _palette_hex(idx: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def make_preview_map(features: list[dict], focus_id: int | None = None) -> pdk.Deck:
+def make_preview_map(
+    features: list[dict],
+    focus_id: int | set[int] | list[int] | None = None,
+    visible_ids: set[int] | None = None,
+) -> pdk.Deck:
     sym = get_symbology()
     color_by = sym.get("color_by")
     cat_colors = sym.get("category_colors") or {}
@@ -297,6 +310,8 @@ def make_preview_map(features: list[dict], focus_id: int | None = None) -> pdk.D
     rendered = []
 
     for i, feature in enumerate(features):
+        if visible_ids is not None and i not in visible_ids:
+            continue
         item = dict(feature)
         props = dict(item.get("properties") or {})
         props["_id"] = i
@@ -345,19 +360,39 @@ def _drawing_to_geometry(drawing: dict | None) -> dict | None:
     return geometry
 
 
-def make_edit_map(features: list[dict], selected_id: int) -> Map:
+def _round_coords(value: Any, ndigits: int = 9) -> Any:
+    if isinstance(value, list):
+        return [_round_coords(v, ndigits) for v in value]
+    if isinstance(value, (int, float)):
+        return round(value, ndigits)
+    return value
+
+
+def _geometries_equal(a: dict | None, b: dict | None) -> bool:
+    """Compare geometries ignoring float round-trip noise from the map widget."""
+    if not a or not b:
+        return a == b
+    return (
+        a.get("type") == b.get("type")
+        and _round_coords(a.get("coordinates")) == _round_coords(b.get("coordinates"))
+    )
+
+
+def make_edit_map(features: list[dict], selected_id: int, view: dict, visible_ids: set[int] | None = None) -> Map:
     sym = get_symbology()
-    bounds = update_map_bounds(features, selected_id)
     fmap = Map(
-        location=[bounds["latitude"], bounds["longitude"]],
-        zoom_start=bounds["zoom"],
+        location=[view["latitude"], view["longitude"]],
+        zoom_start=view["zoom"],
         control_scale=True,
         tiles="OpenStreetMap",
     )
 
-    # Reference layer: selected = blue (fixed), others = user symbology
+    # Reference layer: selected = blue (fixed), others = user symbology.
+    # Unchecked (hidden) features are skipped entirely.
     collection = {"type": "FeatureCollection", "features": []}
     for i, f in enumerate(features):
+        if visible_ids is not None and i not in visible_ids:
+            continue
         item = dict(f)
         props = dict(item.get("properties") or {})
         props["feature_id"] = i
@@ -379,13 +414,14 @@ def make_edit_map(features: list[dict], selected_id: int) -> Map:
             "fillOpacity": _sym["fill_opacity"],
         }
 
-    GeoJson(
-        collection,
-        name="Features",
-        tooltip=GeoJsonTooltip(fields=["feature_id"], aliases=["Feature"]),
-        style_function=_edit_style,
-        highlight_function=lambda _: {"weight": 4, "fillOpacity": 0.50},
-    ).add_to(fmap)
+    if collection["features"]:
+        GeoJson(
+            collection,
+            name="Features",
+            tooltip=GeoJsonTooltip(fields=["feature_id"], aliases=["Feature"]),
+            style_function=_edit_style,
+            highlight_function=lambda _: {"weight": 4, "fillOpacity": 0.50},
+        ).add_to(fmap)
 
     # Draw tool — edit_options make the toolbar show an edit (pencil) button
     draw = Draw(
@@ -460,6 +496,11 @@ def render_upload_tab() -> None:
                     st.session_state.pop("validate_result", None)
                     st.session_state.pop("duplicate_result", None)
                     st.session_state.pop("upload_focus_id", None)  # reset to full extent
+                    st.session_state.pop("upload_feat_list", None)
+                    st.session_state.pop("focus_feature_id", None)
+                    st.session_state.pop("feat_list", None)
+                    st.session_state.pop("_prev_visible_ids", None)
+                    st.session_state.pop("edit_map_view", None)
                     n = len(st.session_state["features"])
                     st.toast(
                         f"Uploaded {n} feature{'s' if n != 1 else ''} from **{uploaded_file.name}**",
@@ -497,27 +538,41 @@ def render_upload_tab() -> None:
         features = st.session_state.get("features", [])
         if features:
             prop_df = flatten_properties(features)
+            n_up = len(prop_df)
             _focus = st.session_state.get("upload_focus_id")
+
+            # Read the table's last known checked rows (if any) so the map,
+            # drawn above the table, reflects the current visibility right away.
+            _prior_sel = st.session_state.get("upload_feat_list")
+            _prior_rows = (
+                _prior_sel["selection"].get("rows", list(range(n_up)))
+                if _prior_sel else list(range(n_up))
+            )
+            visible_ids = {int(prop_df.iloc[r]["#"]) for r in _prior_rows if r < n_up}
+
             st.pydeck_chart(
-                make_preview_map(features, _focus),
+                make_preview_map(features, _focus, visible_ids),
                 height=MAP_HEIGHT - 100,
                 key=f"upload_map_{_focus}_{len(features)}",
             )
-            st.markdown("**Attribute table** — click a row to zoom the map to that feature")
-            _up_sel = st.dataframe(
+
+            _up_lbl, _up_zoom = st.columns([3, 0.7])
+            _up_lbl.markdown("**Attribute table** — check a feature to show it on the map")
+            if _up_zoom.button(
+                ":material/zoom_in:", help="Zoom to checked feature(s)", width="stretch", key="upload_zoom_btn"
+            ):
+                st.session_state["upload_focus_id"] = sorted(visible_ids) or None
+                st.rerun()
+
+            st.dataframe(
                 prop_df,
                 hide_index=True,
                 height=220,
                 on_select="rerun",
-                selection_mode="single-row",
+                selection_mode="multi-row",
+                selection_default={"selection": {"rows": list(range(n_up))}},
                 key="upload_feat_list",
             )
-            _up_rows = _up_sel.selection.rows if _up_sel else []
-            if _up_rows:
-                _new_focus = int(prop_df.iloc[_up_rows[0]]["#"])
-                if _new_focus != _focus:
-                    st.session_state["upload_focus_id"] = _new_focus
-                    st.rerun()
         else:
             st.info(
                 "Upload a GeoJSON file to see the map and attribute table here.",
@@ -634,6 +689,10 @@ def render_duplicate_tab(features: list[dict]) -> None:
                     "GET", "/duplicates",
                     params={"remove_duplicates": True, "duplicate_threshold": threshold},
                 )
+                st.session_state.pop("focus_feature_id", None)
+                st.session_state.pop("feat_list", None)
+                st.session_state.pop("_prev_visible_ids", None)
+                st.session_state.pop("edit_map_view", None)
                 refresh_features()
                 st.toast("Duplicate features removed.", icon=":material/check_circle:")
             except APIError as exc:
@@ -719,8 +778,8 @@ def add_attribute_column(features: list[dict], column_name: str, default_value: 
 def render_edit_tab(features: list[dict]) -> None:
     st.subheader("Edit features")
     st.caption(
-        "Click a row in the feature list to focus the map on that feature. "
-        "Edit its attributes below, or use the draw toolbar on the map to reshape the polygon."
+        "Check a feature to show it on the map — all features are shown by default. "
+        "Click a row to edit its attributes. Use the zoom button to focus the map on it."
     )
 
     if not require_api_connection("retry_edit"):
@@ -731,30 +790,37 @@ def render_edit_tab(features: list[dict]) -> None:
         return
 
     df = flatten_properties(features)
+    n = len(df)
 
     # Restore last selection (persists across reruns)
     stored = int(st.session_state.get("focus_feature_id", 0) or 0)
-    stored = max(0, min(stored, len(features) - 1))
+    stored = max(0, min(stored, n - 1))
+
+    # Apply any pending checkbox-state change requested on the previous run —
+    # must happen before the "feat_list" widget below is instantiated.
+    pending_rows = st.session_state.pop("_pending_feat_rows", None)
+    if pending_rows is not None:
+        st.session_state["feat_list"] = {"selection": {"rows": pending_rows}}
 
     left, right = st.columns([1.4, 1], gap="large")
 
     with right:
-        # ── TABLE 1: feature list — click row to select, or zoom by ID ───────
+        # ── TABLE 1: feature list — checkbox shows/hides on the map; clicking
+        #    a row also makes it the active feature for the attributes panel ──
         _z_lbl, _z_btn, _z_del = st.columns([3, 0.7, 0.7])
         _z_lbl.markdown("**Feature list**")
-        if _z_btn.button(":material/zoom_in:", help="Zoom to selected feature", use_container_width=True, key="zoom_btn"):
-            st.session_state["focus_feature_id"] = stored
-            st.session_state["zoom_ver"] = st.session_state.get("zoom_ver", 0) + 1
+        if _z_btn.button(":material/zoom_in:", help="Zoom to selected feature", width="stretch", key="zoom_btn"):
+            st.session_state["edit_map_view"] = update_map_bounds(features, stored)
             st.rerun()
         with _z_del:
             st.markdown('<span class="del-feat-mark"></span>', unsafe_allow_html=True)
-            if st.button("", icon=":material/delete:", help=f"Delete feature {stored}", use_container_width=True, key="del_feat_btn"):
+            if st.button("", icon=":material/delete:", help=f"Delete feature {stored}", width="stretch", key="del_feat_btn"):
                 try:
                     api_request("DELETE", f"/features/{stored}")
                     st.session_state.pop("focus_feature_id", None)
                     st.session_state.pop("export_bytes", None)
-                    st.session_state.pop("zoom_select", None)
-                    st.session_state.pop("zoom_ver", None)
+                    st.session_state.pop("feat_list", None)
+                    st.session_state.pop("_prev_visible_ids", None)
                     refresh_features()
                     st.toast(f"Feature {stored} deleted.", icon=":material/check_circle:")
                     st.rerun()
@@ -765,19 +831,27 @@ def render_edit_tab(features: list[dict]) -> None:
             df,
             hide_index=True,
             on_select="rerun",
-            selection_mode="single-row",
+            selection_mode="multi-row",
+            selection_default={"selection": {"rows": list(range(n))}},
             key="feat_list",
             height=220,
         )
 
-        sel_rows = sel_event.selection.rows if sel_event else []
-        if sel_rows:
-            selected = int(df.iloc[sel_rows[0]]["#"])
-            if selected != stored:
-                st.session_state["focus_feature_id"] = selected
-                st.rerun()
-        else:
-            selected = stored
+        sel_rows = sel_event.selection.rows if sel_event else list(range(n))
+        visible_ids = {int(df.iloc[r]["#"]) for r in sel_rows if r < n}
+
+        # The most recently *checked* row becomes the active feature for the
+        # attributes panel below — unchecking a row only hides it on the map.
+        prev_visible_ids = st.session_state.get("_prev_visible_ids")
+        if prev_visible_ids is None:
+            prev_visible_ids = set(visible_ids)
+        newly_checked = visible_ids - prev_visible_ids
+        st.session_state["_prev_visible_ids"] = visible_ids
+        if newly_checked:
+            stored = max(newly_checked)
+            st.session_state["focus_feature_id"] = stored
+
+        selected = stored
 
         # ── TABLE 2: editable attributes for the selected feature ─────────────
         st.markdown(f"**Attributes — Feature {selected}**")
@@ -831,34 +905,40 @@ def render_edit_tab(features: list[dict]) -> None:
     with left:
         st.markdown("**Map** — :blue[blue] = selected · :green[green] = others")
         st.caption(
-            "Draw a polygon to add it as a new feature automatically. "
-            "Enable **Replace mode** to update the selected feature's geometry instead."
+            "Draw a polygon to add it as a new feature. To reshape an existing feature, "
+            "select it, drag its vertices with the pencil (edit) tool, then click the "
+            "checkmark — the change saves automatically."
         )
-        _replace_mode = st.toggle(
-            "Replace selected feature geometry",
-            value=False,
-            key="geom_replace_mode",
-            help="When ON, a new drawing replaces the current feature's geometry instead of creating a new feature.",
-        )
+
+        # Pan/zoom is a separate, persistent state — it only changes when the
+        # zoom or full-extent buttons are pressed, never on mere selection.
+        if "edit_map_view" not in st.session_state:
+            st.session_state["edit_map_view"] = update_map_bounds(features, selected)
+        view = st.session_state["edit_map_view"]
+
         map_result = st_folium(
-            make_edit_map(features, selected),
+            make_edit_map(features, selected, view, visible_ids),
             height=MAP_HEIGHT,
             width=None,
-            use_container_width=True,
             returned_objects=["last_active_drawing", "all_drawings"],
-            key=f"edit_map_{selected}_{len(features)}_{st.session_state.get('zoom_ver', 0)}",
+            zoom=view["zoom"],
+            center=(view["latitude"], view["longitude"]),
+            key="edit_map",
         )
 
         all_drawings = (map_result or {}).get("all_drawings") or []
-        last_active = (map_result or {}).get("last_active_drawing")
         n_drawings = len(all_drawings)
 
-        # Per-map-instance counter so each new map starts clean
-        _map_inst = f"_ndraw_{selected}_{len(features)}_{st.session_state.get('zoom_ver', 0)}"
-        n_processed = st.session_state.get(_map_inst, 0)
+        baseline_geom = features[selected].get("geometry") or {}
+        has_baseline = bool(baseline_geom.get("coordinates"))
+        n_baseline = 1 if has_baseline else 0
 
-        if not _replace_mode and n_drawings > n_processed:
-            # New polygon drawn — auto-create a new feature
+        # Per-(selected feature, feature count) counter so each new map starts clean
+        _map_inst = f"_ndraw_{selected}_{len(features)}"
+        n_processed = st.session_state.get(_map_inst, n_baseline)
+
+        if n_drawings > n_processed:
+            # A brand-new polygon was drawn beyond the preloaded one — create a new feature
             st.session_state[_map_inst] = n_drawings
             new_geom = _drawing_to_geometry(all_drawings[-1])
             if new_geom:
@@ -870,6 +950,9 @@ def render_edit_tab(features: list[dict]) -> None:
                     )
                     st.session_state["focus_feature_id"] = new_id
                     st.session_state.pop("export_bytes", None)
+                    rows = sorted(visible_ids | {new_id})
+                    st.session_state["_pending_feat_rows"] = rows
+                    st.session_state["_prev_visible_ids"] = set(rows)
                     refresh_features()
                     st.toast(
                         f"Feature {new_id} created — enter attributes below.",
@@ -878,43 +961,21 @@ def render_edit_tab(features: list[dict]) -> None:
                     st.rerun()
                 except APIError as exc:
                     st.error(exc.message, icon=":material/error:")
-
-        # Drawing used by Replace / extent buttons
-        drawing = all_drawings[-1] if all_drawings else (last_active or None)
-
-        with st.container(horizontal=True):
-            replace_btn = st.button(
-                "Replace geometry",
-                type="primary",
-                icon=":material/save:",
-                disabled=not _replace_mode,
-                help="Save the drawn polygon as the selected feature's new geometry (Replace mode must be ON).",
-            )
-            extent_btn = st.button(
-                "Full extent",
-                icon=":material/fit_screen:",
-                help="Zoom out to show all features.",
-            )
-
-        if replace_btn:
-            geometry = _drawing_to_geometry(drawing)
-            if geometry is None:
-                st.warning(
-                    "Draw a polygon on the map first.",
-                    icon=":material/warning:",
-                )
-            else:
+        elif has_baseline and n_drawings == n_baseline:
+            # The preloaded feature's vertices may have been edited in place
+            edited_geom = _drawing_to_geometry(all_drawings[0]) if all_drawings else None
+            if edited_geom and not _geometries_equal(edited_geom, baseline_geom):
                 try:
-                    api_request("PUT", f"/features/{selected}/geometry", json={"geometry": geometry})
+                    api_request("PUT", f"/features/{selected}/geometry", json={"geometry": edited_geom})
                     refresh_features()
-                    st.session_state[_map_inst] = n_drawings  # mark processed so auto-create skips it
-                    st.toast(f"Geometry saved for feature {selected}.", icon=":material/check_circle:")
+                    st.session_state[_map_inst] = n_drawings
+                    st.toast(f"Geometry updated for feature {selected}.", icon=":material/check_circle:")
                     st.rerun()
                 except APIError as exc:
                     st.error(exc.message, icon=":material/error:")
 
-        if extent_btn:
-            st.session_state.pop("focus_feature_id", None)
+        if st.button("Full extent", icon=":material/fit_screen:", help="Zoom out to show all features."):
+            st.session_state["edit_map_view"] = update_map_bounds(features, None)
             st.rerun()
 
 
