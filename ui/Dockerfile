@@ -6,6 +6,7 @@ COPY ui/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ui/ ./
+COPY assistant/ ./assistant/
 
 EXPOSE 8501
 
