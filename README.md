@@ -16,6 +16,8 @@ Two services, no database, no auth — each browser session gets its own in-memo
 
 ### 1. Get the code
 
+Repository: [nimesh7814/automation_assistance.git](https://github.com/nimesh7814/automation_assistance.git)
+
 ```bash
 git clone https://github.com/nimesh7814/automation_assistance.git
 cd automation_assistance
@@ -43,7 +45,14 @@ Only needed for the Assistant tab — every other tab works fine without it.
 
 ### 3. Run it
 
-**Option A — with Docker (Recommended):**
+**Option A — Docker install and run (Recommended):**
+
+Install Docker Desktop first:
+
+- Windows/macOS: https://www.docker.com/products/docker-desktop/
+- Linux: install Docker Engine and Docker Compose from your distribution or Docker's official docs.
+
+Then run the application from the project root:
 
 ```bash
 # Run the Application detached mode
@@ -59,15 +68,19 @@ docker compose down -v
 | API     | http://localhost:8000 | docs at `/docs`                            |
 | Logs    | http://localhost:8888 | live view of the `api`/`ui` container logs |
 
-**Option B — without Docker (run each service yourself, in two terminals):**
+**Option B — without Docker (run each service yourself in two terminals):**
+
+Open terminal 1 for the API:
 
 ```bash
-# terminal 1 — API
 cd api
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
+```
 
-# terminal 2 — UI
+Open terminal 2 for the UI:
+
+```bash
 cd ui
 pip install -r requirements.txt
 streamlit run app.py

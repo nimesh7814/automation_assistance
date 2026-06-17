@@ -103,6 +103,14 @@ That matters because nothing downstream reprojects coordinates — area calculat
 - **One file at a time.** `/upload/file` replaces the session's whole dataset (`set_dataset` overwrites, it doesn't merge) — uploading a second file discards the first rather than combining them. Loading several client files into one working set isn't supported yet.
 - **`.geojson` only.** KML, Shapefile (`.shp`/`.shx`/`.dbf`), and plain `.json` aren't accepted, even if their contents are otherwise valid GeoJSON-shaped data. Supporting those would mean converting them to GeoJSON on upload (e.g. via `fiona`/GDAL for KML and Shapefile) — that conversion step doesn't exist yet, but would be a reasonable thing to add.
 - **No CRS detection or reprojection** — see above.
+- **In-memory sessions only.** Session data lives in a Python dictionary. It is fast and simple for a demo or internal QA tool, but restarting the API loses all uploaded data. Production use would need persistent storage such as PostGIS, PostgreSQL JSONB, object storage, or another database-backed session store.
+- **No authentication or authorization.** The API trusts whoever can reach it. In production it should sit behind SSO or Cloudflare Access, and the API itself should still enforce authorization instead of relying only on the network edge.
+- **Feature IDs are not stable.** Endpoints use the feature's current list index. Deleting feature `2` shifts every later feature ID. A production version should assign stable UUIDs and keep those IDs through edits and exports.
+- **Duplicate detection is approximate.** Duplicates are detected by rounded WKT strings generated from Shapely geometries. This works for exact or very similar coordinate sequences, but topology-equivalent shapes with different vertex ordering, ring ordering, or small coordinate differences may not always be grouped as expected. A stronger implementation would normalize geometries and use spatial indexes.
+- **Intersection detection is pairwise.** The current implementation compares each geometry to each other geometry. That is fine for small and medium files, but large datasets should use an R-tree or another spatial index.
+- **Geometry updates are type-checked, not fully validated.** `PUT /features/{id}/geometry` requires `Polygon` or `MultiPolygon` and coordinates, but it does not run the full validation suite before saving. Users should run `/validate` after manual geometry JSON edits.
+- **Attribute schemas are flexible.** Properties can differ by feature and there is no required schema. That is convenient for mixed farm datasets, but production teams may want required fields, data types, controlled vocabularies, and validation rules.
+- **No audit trail.** Edits, fixes, and duplicate removals are logged as events, but the API does not keep a reversible history of dataset versions. Production use should add versioning, before/after diffs, and user identity in the audit log.
 
 ## Logging
 

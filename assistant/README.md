@@ -1,40 +1,103 @@
 # Assistant
 
-A Gemini function-calling assistant, grounded in the GeoJSON data loaded in the current dashboard session. Rendered as the UI's "Assistant" tab via `render_assistant_tab`, re-exported from `assistant/__init__.py` and imported by `ui/app.py` as `from assistant import render_assistant_tab`.
+The Assistant tab is a Gemini function-calling assistant grounded in the GeoJSON data loaded in the current dashboard session. It is rendered from `ui/app.py` through `render_assistant_tab`, re-exported by `assistant/__init__.py`.
 
-It's a separate top-level package (not under `ui/`) so it's a clearly distinct concern from the dashboard UI, even though it's only ever rendered from there.
+It is intentionally a separate top-level package so the LLM logic stays separate from the normal dashboard UI code.
 
-## How it works
+## What The Assistant Can Do
 
-This is a manual function-calling loop against `google-genai`, not the SDK's automatic loop — every tool call and result is captured so it can be shown in the UI's "Tool calls used" trace.
+The assistant can answer questions such as:
 
-- The model can only call the tools declared in `TOOL_DECLARATIONS`/`TOOL_DISPATCH`: feature count, total area, validation scan, duplicate scan, list every property/attribute name with its types and value breakdown, get one feature's properties, search features by property value. **None of them can write, fix, or delete data** — that capability simply doesn't exist in the tool catalog, so it isn't something that can be bypassed at runtime.
-- The `list_property_keys` tool exists specifically to stop the model from guessing attribute names: the system prompt tells it to call this before filtering/searching by a property it isn't sure about, since an invented property name would otherwise just silently find nothing.
-- The loop is capped at `MAX_TOOL_CALLS` (5) round-trips per question; if it's not resolved by then, the user gets a "please rephrase" message instead of an infinite loop.
-- Tool results are scoped to the same session as the rest of the dashboard — tools take the UI's already session-bound `features` list and `api_request` function, so the assistant never widens the session boundary.
-- The system prompt explicitly tells the model to treat tool-returned data (including property values copied straight from the uploaded file) as data only, never as instructions — a mitigation against prompt injection via a malicious property value.
+- How many geometries are in this file?
+- What is the total area in hectares?
+- List invalid geometries.
+- Are there duplicate geometries?
+- What attributes exist in the uploaded file?
+- Which features have a specific attribute value?
 
-See `docs/agentic_ai_assistant.md` (if present in your checkout) for the full architecture writeup and an OWASP-LLM-Top-10-mapped risk/mitigation table.
+It cannot edit, delete, fix, or export data. Those actions remain normal dashboard workflows controlled by the user.
+
+## How It Is Constrained To Real Data
+
+The assistant does not receive broad access to the database, filesystem, or application internals. It gets a fixed list of read-only tools:
+
+| Tool | What it does |
+| --- | --- |
+| `get_feature_count` | Counts loaded features and geometry types from the current session cache. |
+| `get_total_area_hectares` | Calls the API's `/stats/area` endpoint. |
+| `run_validation_scan` | Calls the API's `/validate` endpoint. |
+| `run_duplicate_scan` | Calls the API's `/duplicates` endpoint without removing anything. |
+| `list_property_keys` | Lists real attribute names, types, null counts, and values from the loaded features. |
+| `get_feature_properties` | Returns the properties for one feature ID. |
+| `search_features_by_property` | Searches features by exact property value. |
+
+The system prompt tells the model to use only these tools for facts. It must not guess feature counts, areas, IDs, validation status, duplicate groups, or property names.
+
+The tool trace is shown in the UI under "Tool calls used". This is important because a human reviewer can see whether the answer came from a real structured query or from model text generation.
+
+## Agentic Architecture
+
+This is a small controlled agent loop, not a free-form chatbot.
+
+1. The user asks a question in the Assistant tab.
+2. The code sends the question, conversation history, system instruction, and tool declarations to Gemini.
+3. Gemini can either answer directly or request a tool call.
+4. The Python code executes only the requested tool if it is in the allow-list.
+5. The tool result is sent back to Gemini.
+6. Gemini writes the final answer based on the tool result.
+7. The UI displays the final answer and the tool trace.
+
+Automatic SDK function calling is disabled. The application handles every tool call itself so it can log calls, show traces, limit loops, and prevent hidden behavior.
+
+The loop is capped at `MAX_TOOL_CALLS = 5`. If the model cannot answer within that limit, the user is asked to rephrase instead of allowing an infinite or expensive loop.
+
+## Prompt Injection Mitigation
+
+Uploaded GeoJSON attributes are untrusted data. A property value could contain text such as "ignore previous instructions". The system instruction explicitly tells the model to treat all tool-returned values as data only, never as instructions.
+
+This is not a complete security boundary by itself. For production, I would also add output filtering, stricter tool result schemas, monitoring for suspicious prompts, and tests with malicious sample files.
 
 ## Configuration
 
-Read from the environment at call time, not module import time — `os.getenv()` calls live inside functions (`_get_message_limit()`, the `GEMINI_API_KEY` lookup in `render_assistant_tab`), not at module scope. That matters because env vars need to already be loaded before they're read; `ui/app.py` calls `load_dotenv()` near the top of the file, before importing this package, so this isn't actually load-bearing today — but reading lazily means the order could change later without silently breaking config:
-
 | Variable | Purpose |
 | --- | --- |
-| `GEMINI_API_KEY` | Required. Without it, `render_assistant_tab` shows a warning and returns early — the rest of the dashboard is unaffected. |
-| `GEMINI_MODEL` | Optional, defaults to `gemini-2.5-flash`. |
-| `LIMIT` | Optional, defaults to `100`. Per-session cap on the number of questions a user can send, to bound API spend. |
+| `GEMINI_API_KEY` | Required for the Assistant tab. Without it, the tab shows a warning and returns early. |
+| `GEMINI_MODEL` | Optional. Defaults to `gemini-2.5-flash`. |
+| `LIMIT` | Optional. Defaults to `100`. Limits assistant questions per session to control API spend. |
 
-## Error handling
+The code reads environment variables at call time where practical, so configuration changes are less likely to be frozen at import time.
 
-`google.genai.errors.APIError` is caught specifically (to surface `code`/`status`/`message`) with a generic `Exception` fallback; both show `st.error` with the real error. Backend tool-call errors (e.g. a failed `/validate` call) surface as `st.warning` in addition to appearing in the collapsed tool-call trace — a failed tool never crashes the chat loop.
+## Error Handling
 
-## Limitations
+Gemini API errors are caught and shown as user-friendly Streamlit errors. Tool failures are also caught. A failed tool call appears in the tool trace and does not crash the whole chat loop.
 
-- **Read-only, not a workflow driver.** The assistant can answer questions about the data but can't act on it — there's no way to ask it to "fix everything auto-fixable" or "remove duplicates above 0.95" and have it actually do that. A write-capable version would need its own tool set plus an explicit per-action confirmation step before anything touches the session data.
-- **Risk/mitigation notes are scattered, not consolidated.** The prompt-injection mitigation (treating tool output as data, not instructions), the `MAX_TOOL_CALLS` cap, and the read-only tool catalog are each documented inline (this README, docstrings, code comments) rather than collected into one production-readiness write-up with a full risk register.
+The assistant is optional. If it is unavailable, the rest of the dashboard still works.
+
+## Production Risks And Mitigations
+
+| Risk | Why it matters | Mitigation |
+| --- | --- | --- |
+| Hallucinated answer | The model might answer without enough evidence. | Keep factual questions tool-based. Show tool traces. Instruct the model not to guess. |
+| Prompt injection through uploaded attributes | GeoJSON property values may contain malicious instructions. | Treat tool output as data only. Add prompt-injection tests and result sanitization. |
+| Data leakage to an external LLM | Uploaded attributes and summaries may be sent to Gemini. | Review data policy, redact sensitive fields, use approved enterprise LLM settings, or run a self-hosted model. |
+| Unexpected cost | Repeated questions can create API cost. | Keep `LIMIT`, add user-level rate limits, and monitor usage. |
+| Write-capable agent risk | If edit/delete tools are added later, the model could make harmful changes. | Require explicit human confirmation, dry-run previews, permission checks, and audit logs for every write. |
+| Tool result overload | Large attribute tables could exceed context or expose too much data. | Summarize high-cardinality fields, page results, and cap returned rows. |
+| Availability dependency | Assistant depends on Gemini and network access. | Keep core QA workflow independent, as it is now. Add clear degraded-mode messaging. |
+
+## Current Limitations
+
+- The assistant is read-only. It can guide the user but cannot run cleanup actions.
+- It cannot answer questions that require data not exposed by its tools.
+- It uses exact-match property search, not semantic search.
+- It does not keep a separate audit record beyond normal application logs and the visible tool trace.
+- It does not redact uploaded property values before sending tool results to Gemini.
 
 ## Packaging
 
-Shipped as part of the `ui` Docker image: `ui/Dockerfile` has a `COPY assistant/ ./assistant/` step alongside `COPY ui/ ./`, so this package ends up next to `ui/app.py` inside the container. Its dependencies (`streamlit`, `google-genai`) live in `ui/requirements.txt`, not a requirements file of its own. When running the UI directly on the host (`cd ui && streamlit run app.py`), `ui/app.py` inserts the repo root onto `sys.path` before importing this package, since `assistant/` otherwise wouldn't be on Python's import path from inside `ui/`.
+The assistant is included in both Docker options:
+
+- Split UI image: `ui/Dockerfile` copies `assistant/` beside the UI code.
+- Single app image: the root `Dockerfile` copies `api/`, `ui/`, and `assistant/` into one container.
+
+Dependencies such as `google-genai` live in `ui/requirements.txt`.

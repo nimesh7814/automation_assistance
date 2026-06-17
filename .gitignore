@@ -16,3 +16,5 @@ sample_data\invalid_missing_properties.geojson
 sample_data\invalid_missing_geometry.geojson
 sample_data\Test_Farm.geojson
 sample_data\valid_farm.geojson
+api\test.py
+geojson_viewer.tar

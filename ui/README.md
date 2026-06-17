@@ -1,71 +1,95 @@
 # GeoJSON Dashboard UI
 
-A Streamlit dashboard for the API in `../api/`. Upload a GeoJSON file, then walk through validation, duplicate detection, map-based editing, export, and an AI assistant — all scoped to your browser session via a generated `X-Session-ID`.
+A Streamlit dashboard for the API in `../api/`. Upload a GeoJSON file, walk through validation and duplicate detection, inspect the data on maps and tables, edit features, export the cleaned result, and use the Assistant tab to ask grounded questions about the loaded data.
+
+The UI uses a generated `X-Session-ID` so each browser session talks to its own backend dataset.
 
 ## Tabs
 
-- **Upload** — drop a `.geojson` file, see which features were accepted/skipped, preview them on a map with a checkbox-driven attribute table.
-- **Validate** — run geometry validation (invalid rings, winding, self-intersections, holes) and auto-fix the fixable subset.
-- **Duplicates** — scan for identical and spatially-intersecting geometries at an adjustable match threshold, and remove duplicates.
-- **Edit** — pan/zoom map with per-feature visibility toggles; draw new polygons or drag vertices of an existing one (edits auto-save), edit attribute properties, delete features.
-- **Export** — preview the current feature table and download the session's data as a `.geojson` file.
-- **Assistant** — ask questions about the loaded data via a Gemini-powered, read-only function-calling assistant (see `../assistant/README.md`). Hidden behind a `GEMINI_API_KEY` — every other tab works without it.
+- **Upload**: drop a `.geojson` file, see accepted and skipped features, preview the geometries on a map, and inspect attributes in a selectable table.
+- **Validate**: run geometry validation for invalid rings, winding problems, self-intersections, empty geometry, and hole placement issues. Auto-fix the subset that is safe to repair mechanically.
+- **Duplicates**: scan for duplicate geometries and intersecting geometry groups with an adjustable threshold. Duplicate features can be removed from the session.
+- **Edit**: show or hide features, select a feature, edit its attributes, draw new polygons, delete features, reshape the selected geometry, or paste a GeoJSON geometry object.
+- **Export**: preview the current table and download the session's current GeoJSON.
+- **Assistant**: ask Gemini-powered natural-language questions about the loaded data through fixed read-only tools. The assistant is disabled unless `GEMINI_API_KEY` is configured.
 
-## Running locally
+## Running Locally
 
 ```bash
-# Go into the downloaded directory
 cd ui
-
-# Install the requirements
 pip install -r requirements.txt
-
-# Run the Streamlit application
 streamlit run app.py
 ```
 
-Requires the API to be reachable (default `http://localhost:8000` — set in `.env`, see below). The dashboard opens at `http://localhost:8501`.
+The API must be reachable. For local non-Docker use, `API_BASE_URL` should normally be:
 
-## Running with Docker
+```text
+API_BASE_URL=http://localhost:8000
+```
+
+The dashboard opens at http://localhost:8501.
+
+## Running With Docker
 
 From the repo root:
 
 ```bash
-# rebuild/restart just the UI
 docker compose up --build -d ui
-
-# See the logs of the UI
 docker compose logs ui --tail 50
 ```
 
-`ui/Dockerfile` copies both `ui/` and `../assistant/` into the image, since the Assistant tab imports `assistant` as a sibling package.
+The split UI image copies both `ui/` and `../assistant/` because the Assistant tab imports the assistant package as a sibling module. The single-container app in the root `Dockerfile` also includes the UI and assistant together.
 
-## Configuration (`.env`)
+## Configuration
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env` and fill in what you need:
 
-| Variable         | Purpose                                                                                                                                                                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY` | Required for the Assistant tab. Without it, that tab shows a notice and the rest of the dashboard works normally. Get a free-tier key at https://aistudio.google.com/apikey.                                                                |
-| `LIMIT`          | Per-session message cap for the assistant (default `100`).                                                                                                                                                                                  |
-| `API_BASE_URL`   | Where the UI looks for the API. `http://api:8000` under Docker Compose (container-to-container DNS — `localhost` inside the `ui` container is the `ui` container itself), `http://localhost:8000` when running the UI directly on the host. |
+| Variable | Purpose |
+| --- | --- |
+| `GEMINI_API_KEY` | Required only for the Assistant tab. The rest of the dashboard works without it. |
+| `GEMINI_MODEL` | Optional Gemini model override. Defaults to `gemini-2.5-flash` in the assistant code. |
+| `LIMIT` | Per-session message cap for the assistant. Defaults to `100`. |
+| `API_BASE_URL` | Where the UI calls the API. Use `http://api:8000` in split Docker Compose, `http://127.0.0.1:8000` in the single-container app, and `http://localhost:8000` when running directly on the host. |
 
-`.env` is loaded via `python-dotenv` and is git-ignored — never commit your real key.
+`.env` is loaded with `python-dotenv` and is git-ignored. Do not commit real API keys.
 
-## Code layout
+## Code Layout
 
-- `app.py` — bootstrap only: page config, CSS, logging, session init, sidebar, tab wiring. No tab-rendering logic itself.
-- `api_client.py` — `APIError`, the `api_request()` HTTP helper everything goes through, session helpers, `upload_file`, `probe_health`, `refresh_features`, `clear_data`, `require_api_connection`.
-- `map_utils.py` — symbology, the pydeck preview map (Upload/Export tabs) and the folium edit map (Edit tab), plus geometry-diff helpers.
-- `tabs/{upload,validate,duplicates,edit,export}.py` — one `render_*_tab` function per workflow step.
+- `app.py`: page setup, CSS, logging, session init, sidebar, and tab wiring.
+- `api_client.py`: shared HTTP helper, session helpers, health checks, upload, refresh, clear, and API connection gating.
+- `map_utils.py`: pydeck preview maps, Folium edit map, symbology helpers, geometry conversion helpers, and attribute flattening.
+- `tabs/upload.py`: upload workflow and initial map/table preview.
+- `tabs/validate.py`: geometry validation and auto-fix UI.
+- `tabs/duplicates.py`: duplicate and intersection scan UI.
+- `tabs/edit.py`: feature visibility, attribute editing, delete, draw, reshape, and geometry JSON editing.
+- `tabs/export.py`: final preview and download.
 
-All tabs share `st.session_state["features"]` as the locally cached copy of whatever the API has for this session — call `refresh_features()` after any change that mutates the backend dataset.
+All tabs share `st.session_state["features"]` as the local cache of the current backend session. After a backend mutation, the tab should call `refresh_features()`.
 
 ## Logging
 
-Each module gets its own child logger (`geojson_dashboard.ui.*`) logging key actions — uploads, edits, deletes, exports, every `api_request()` call's outcome — to console, visible via `docker compose logs ui`.
+Each UI module uses a child logger such as `geojson_dashboard.ui.upload`. The logs include uploads, validation runs, duplicate scans, edits, deletes, exports, and API request outcomes. In Docker, view them with:
+
+```bash
+docker compose logs ui --tail 50
+```
 
 ## Limitations
 
-- **Streamlit can feel slow.** Every click reruns the whole script top-to-bottom (that's how Streamlit works, not a bug specific to this app), so on larger datasets there's a noticeable pause after every interaction — there's no partial/async update, the map and tables redraw fully each time.
-- **Only the selected feature is editable on the map.** The Edit tab's map only loads the currently-selected feature (shown in blue) into the draggable Draw layer — every other visible feature is read-only on the map. To reshape a different already-drawn feature, you have to select it first (check its row in the feature list) before its vertices become draggable; you can't grab any random polygon's vertex straight off the map.
+- **Streamlit reruns the script after interactions.** This keeps the code simple but can feel slow on larger datasets because maps and tables redraw often.
+- **Only the selected feature is directly reshapeable on the edit map.** Other visible features are shown for context, but to drag vertices you must select the feature first.
+- **No undo button.** Deletes, duplicate removals, saved attributes, and saved geometry edits update the active API session immediately. Re-uploading the original file is the current recovery path.
+- **Single active dataset.** The UI does not compare two files side by side, merge multiple uploads, or preserve per-file provenance after upload.
+- **Tables are for inspection and light editing.** They are not full spreadsheets. There is no bulk find/replace, formula support, controlled vocabulary editor, or schema validation.
+- **Manual geometry JSON editing needs care.** The JSON editor saves a geometry object if the API accepts its basic type and coordinate structure. Users should run Validate after manual geometry edits.
+- **Symbology is not exported.** Map colors help inspect the current session but are not written into the exported GeoJSON.
+- **Assistant availability depends on Gemini.** If `GEMINI_API_KEY` is missing, invalid, rate-limited, or the Gemini API is unreachable, the Assistant tab cannot answer. The rest of the app still works.
+
+## Useful Improvements To Add Next
+
+- Add multi-file upload with merge rules and source-file tracking.
+- Add undo/version history for edits, auto-fixes, and duplicate removals.
+- Add stable feature IDs so deleting one feature does not shift later IDs.
+- Add table-level bulk editing for common attribute cleanup tasks.
+- Add CRS warnings before mapping and area calculation.
+- Add background jobs, progress indicators, pagination, and spatial indexes for larger datasets.
