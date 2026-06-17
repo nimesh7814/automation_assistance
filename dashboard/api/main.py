@@ -14,6 +14,7 @@ from functions.edit_geometry_attribute import (update_geometry_geojson, add_feat
 from functions.delete_feature import delete_feature_geojson
 from functions.export import export as export_func
 from functions.get_feature import fetch_all
+from functions.stats import get_area_summary
 
 # Basic logging setup (console)
 logging.basicConfig(
@@ -96,6 +97,12 @@ def fix(session_id: SessionID):
 @app.get("/features")
 def get_all_features(session_id: SessionID):
     return fetch_all(session_id)
+
+
+# Total and per-feature area in hectares
+@app.get("/stats/area")
+def get_area(session_id: SessionID):
+    return get_area_summary(session_id)
 
 
 # Find Duplicate Geometries

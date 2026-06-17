@@ -4,3 +4,5 @@ pandas
 pydeck
 folium
 streamlit-folium
+google-genai
+python-dotenv

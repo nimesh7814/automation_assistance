@@ -61,5 +61,16 @@ the UI to try out the map, table, validation and export features.
 - **Edit** the data: draw new polygons, edit existing geometries,
   delete features, and edit attribute values.
 - **Export** the result as `.geojson`.
+- **Ask the Assistant** - a natural-language Q&A tab grounded in the
+  loaded data via Gemini function calling (feature counts, area in
+  hectares, validation/duplicate scans, attribute lookups). It can only
+  read and run non-destructive scans, never edit or delete data. See
+  [`docs/agentic_ai_assistant.md`](docs/agentic_ai_assistant.md) for the
+  architecture and a production risk/mitigation write-up. Requires a
+  `GEMINI_API_KEY` - copy [`ui/.env.example`](ui/.env.example) to `ui/.env`
+  and add your key (free tier at https://aistudio.google.com/apikey).
+  `docker compose up` picks it up automatically; running the UI directly
+  also picks it up via `python-dotenv`. Without it, the Assistant tab just
+  shows a notice and the rest of the dashboard is unaffected.
 - **Error logging** - the API logs requests and unexpected errors to
   the console, and always returns a friendly error message to the UI.

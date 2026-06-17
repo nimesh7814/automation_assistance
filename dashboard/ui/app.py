@@ -8,11 +8,17 @@ import pandas as pd
 import pydeck as pdk
 import requests
 import streamlit as st
+from dotenv import load_dotenv
 from folium import GeoJson, GeoJsonTooltip, MacroElement, Map
 from folium.plugins import Draw
 from jinja2 import Template
 from streamlit_folium import st_folium
 
+from assistant import render_assistant_tab
+
+# Loads GEMINI_API_KEY (and any other local overrides) from ui/.env when
+# running the UI directly; in Docker these are already set via env_file.
+load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 MAP_HEIGHT = 520
@@ -165,6 +171,7 @@ def clear_data() -> None:
         "export_bytes",
         "file_name",
         "focus_feature_id",
+        "ai_messages",
     ]:
         st.session_state.pop(key, None)
     # Issue a fresh session ID and embed it in the URL so the next refresh
@@ -1080,6 +1087,7 @@ tabs = st.tabs([
     ":material/content_copy: Duplicates",
     ":material/edit: Edit",
     ":material/download: Export",
+    ":material/smart_toy: Assistant",
 ])
 
 with tabs[0]:
@@ -1104,3 +1112,8 @@ features = st.session_state.get("features", [])
 
 with tabs[4]:
     render_export_tab(features)
+
+features = st.session_state.get("features", [])
+
+with tabs[5]:
+    render_assistant_tab(features, api_request)
