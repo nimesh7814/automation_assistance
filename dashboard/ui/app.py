@@ -824,8 +824,14 @@ def render_edit_tab(features: list[dict]) -> None:
     with left:
         st.markdown("**Map** — :blue[blue] = selected · :green[green] = others")
         st.caption(
-            "The selected feature's polygon is pre-loaded into the draw toolbar. "
-            "Click :material/edit: Edit layers to drag its vertices, or draw a new shape and click **Replace geometry**."
+            "Draw a polygon to add it as a new feature automatically. "
+            "Enable **Replace mode** to update the selected feature's geometry instead."
+        )
+        _replace_mode = st.toggle(
+            "Replace selected feature geometry",
+            value=False,
+            key="geom_replace_mode",
+            help="When ON, a new drawing replaces the current feature's geometry instead of creating a new feature.",
         )
         map_result = st_folium(
             make_edit_map(features, selected),
@@ -836,25 +842,46 @@ def render_edit_tab(features: list[dict]) -> None:
             key=f"edit_map_{selected}_{len(features)}_{st.session_state.get('zoom_ver', 0)}",
         )
 
-        # Resolve the last drawn/edited shape
-        drawing = None
-        all_drawings = (map_result or {}).get("all_drawings")
-        if all_drawings:
-            drawing = all_drawings[-1]
-        elif (map_result or {}).get("last_active_drawing"):
-            drawing = map_result["last_active_drawing"]
+        all_drawings = (map_result or {}).get("all_drawings") or []
+        last_active = (map_result or {}).get("last_active_drawing")
+        n_drawings = len(all_drawings)
+
+        # Per-map-instance counter so each new map starts clean
+        _map_inst = f"_ndraw_{selected}_{len(features)}_{st.session_state.get('zoom_ver', 0)}"
+        n_processed = st.session_state.get(_map_inst, 0)
+
+        if not _replace_mode and n_drawings > n_processed:
+            # New polygon drawn — auto-create a new feature
+            st.session_state[_map_inst] = n_drawings
+            new_geom = _drawing_to_geometry(all_drawings[-1])
+            if new_geom:
+                new_id = len(features)
+                try:
+                    api_request(
+                        "POST", "/features",
+                        json={"type": "Feature", "properties": {}, "geometry": new_geom},
+                    )
+                    st.session_state["focus_feature_id"] = new_id
+                    st.session_state.pop("export_bytes", None)
+                    refresh_features()
+                    st.toast(
+                        f"Feature {new_id} created — enter attributes below.",
+                        icon=":material/check_circle:",
+                    )
+                    st.rerun()
+                except APIError as exc:
+                    st.error(exc.message, icon=":material/error:")
+
+        # Drawing used by Replace / extent buttons
+        drawing = all_drawings[-1] if all_drawings else (last_active or None)
 
         with st.container(horizontal=True):
             replace_btn = st.button(
                 "Replace geometry",
                 type="primary",
                 icon=":material/save:",
-                help="Save the drawn/edited shape as the selected feature's new geometry.",
-            )
-            add_btn = st.button(
-                "Add as new feature",
-                icon=":material/add_location:",
-                help="Save the drawn shape as a brand-new feature.",
+                disabled=not _replace_mode,
+                help="Save the drawn polygon as the selected feature's new geometry (Replace mode must be ON).",
             )
             extent_btn = st.button(
                 "Full extent",
@@ -866,30 +893,15 @@ def render_edit_tab(features: list[dict]) -> None:
             geometry = _drawing_to_geometry(drawing)
             if geometry is None:
                 st.warning(
-                    "Use the draw toolbar to edit or draw a polygon first.",
+                    "Draw a polygon on the map first.",
                     icon=":material/warning:",
                 )
             else:
                 try:
                     api_request("PUT", f"/features/{selected}/geometry", json={"geometry": geometry})
                     refresh_features()
+                    st.session_state[_map_inst] = n_drawings  # mark processed so auto-create skips it
                     st.toast(f"Geometry saved for feature {selected}.", icon=":material/check_circle:")
-                    st.rerun()
-                except APIError as exc:
-                    st.error(exc.message, icon=":material/error:")
-
-        if add_btn:
-            geometry = _drawing_to_geometry(drawing)
-            if geometry is None:
-                st.warning("Draw a polygon on the map first.", icon=":material/warning:")
-            else:
-                try:
-                    api_request(
-                        "POST", "/features",
-                        json={"type": "Feature", "properties": {}, "geometry": geometry},
-                    )
-                    refresh_features()
-                    st.toast("New feature added.", icon=":material/check_circle:")
                     st.rerun()
                 except APIError as exc:
                     st.error(exc.message, icon=":material/error:")
