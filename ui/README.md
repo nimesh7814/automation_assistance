@@ -46,12 +46,12 @@ The split UI image copies both `ui/` and `../assistant/` because the Assistant t
 
 Copy `.env.example` to `.env` and fill in what you need:
 
-| Variable | Purpose |
-| --- | --- |
-| `GEMINI_API_KEY` | Required only for the Assistant tab. The rest of the dashboard works without it. |
-| `GEMINI_MODEL` | Optional Gemini model override. Defaults to `gemini-2.5-flash` in the assistant code. |
-| `LIMIT` | Per-session message cap for the assistant. Defaults to `100`. |
-| `API_BASE_URL` | Where the UI calls the API. Use `http://api:8000` in split Docker Compose, `http://127.0.0.1:8000` in the single-container app, and `http://localhost:8000` when running directly on the host. |
+| Variable         | Purpose                                                                                                                                                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY` | Required only for the Assistant tab. The rest of the dashboard works without it.                                                                                                               |
+| `GEMINI_MODEL`   | Optional Gemini model override. Defaults to `gemini-2.5-flash` in the assistant code.                                                                                                          |
+| `LIMIT`          | Per-session message cap for the assistant. Defaults to `100`.                                                                                                                                  |
+| `API_BASE_URL`   | Where the UI calls the API. Use `http://api:8000` in split Docker Compose, `http://127.0.0.1:8000` in the single-container app, and `http://localhost:8000` when running directly on the host. |
 
 `.env` is loaded with `python-dotenv` and is git-ignored. Do not commit real API keys.
 

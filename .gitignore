@@ -2,6 +2,7 @@
 __pycache__/
 *.log
 *.tar
+*.ai
 logs/
 .env
 *.tmp
@@ -17,4 +18,5 @@ sample_data\invalid_missing_geometry.geojson
 sample_data\Test_Farm.geojson
 sample_data\valid_farm.geojson
 api\test.py
-geojson_viewer.tar
+geojson_viewer_v1.0.tar
+assets\Validation.ai
