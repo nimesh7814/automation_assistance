@@ -75,8 +75,6 @@ def load_geojson_from_bytes(file_contents: bytes) -> dict:
         )
 
 # Reject anything that isn't a FeatureCollection, Polygon, or MultiPolygon;
-# wrap a bare Polygon/MultiPolygon into a one-feature FeatureCollection so
-# every step after this one only has to handle a single shape.
 def normalize_root_type(geojson_data: dict) -> dict:
 
     root_type = geojson_data.get("type")

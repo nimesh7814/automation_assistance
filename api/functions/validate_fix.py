@@ -121,6 +121,29 @@ def run_custom_checks(features: list) -> dict:
     return results
 
 
+# geojson_validator's own checks (e.g. check_unclosed) index straight into
+# coordinates[0] and raise an unhandled IndexError on a feature with no
+# coordinates at all - swap those features for a trivially valid placeholder
+# just for this call so the library never sees an empty geometry. The real
+# empty_geometry check (above) runs separately against the unmodified data,
+# so the feature is still correctly reported/dropped - this only stops the
+# library call itself from crashing the request before that can happen.
+_EMPTY_GEOMETRY_PLACEHOLDER = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}
+
+
+def safe_validate_geometries(data: dict, criteria: list) -> dict:
+    features = data.get("features", [])
+    empty_indices = set(check_empty_geometry(features))
+    if not empty_indices:
+        return geojson_validator.validate_geometries(data, criteria)
+
+    safe_features = [
+        {**feature, "geometry": _EMPTY_GEOMETRY_PLACEHOLDER} if idx in empty_indices else feature
+        for idx, feature in enumerate(features)
+    ]
+    return geojson_validator.validate_geometries({**data, "features": safe_features}, criteria)
+
+
 # Formatting
 def format_geometry_issues(invalid: dict) -> list:
     formatted = []
@@ -141,7 +164,7 @@ def validate_geometry(session_id: str):
     features = data.get("features", [])
 
     # geojson_validator checks
-    geometry_issues = geojson_validator.validate_geometries(data, VALIDATOR_CRITERIA)
+    geometry_issues = safe_validate_geometries(data, VALIDATOR_CRITERIA)
     invalid = geometry_issues.get("invalid", {})
 
     # Custom checks
@@ -168,7 +191,7 @@ def fix_geojson(session_id: str):
     features = data.get("features", [])
 
     # Validate before fix
-    geometry_issues_before = geojson_validator.validate_geometries(data, VALIDATOR_CRITERIA)
+    geometry_issues_before = safe_validate_geometries(data, VALIDATOR_CRITERIA)
     invalid_before = {
         **geometry_issues_before.get("invalid", {}),
         **run_custom_checks(features),
@@ -189,7 +212,7 @@ def fix_geojson(session_id: str):
 
     # Validate after fix
     features_after = fixed.get("features", [])
-    geometry_issues_after  = geojson_validator.validate_geometries(fixed, VALIDATOR_CRITERIA)
+    geometry_issues_after  = safe_validate_geometries(fixed, VALIDATOR_CRITERIA)
     invalid_after = {
         **geometry_issues_after.get("invalid", {}),
         **run_custom_checks(features_after),
