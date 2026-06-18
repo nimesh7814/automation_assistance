@@ -106,8 +106,3 @@ def render_duplicate_tab(features: list[dict]) -> None:
                 "Intersects": st.column_config.CheckboxColumn("Intersects"),
             },
         )
-
-        pairs = dup_result.get("intersection_pairs", [])
-        if pairs:
-            with st.expander("Intersection pairs", icon=":material/info:", expanded=False):
-                st.dataframe(pd.DataFrame(pairs), hide_index=True)
