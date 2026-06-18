@@ -12,6 +12,10 @@ Two services, no database, no auth — each browser session gets its own in-memo
 | `ui/`        | Streamlit dashboard       | http://localhost:8501                   | [ui/README.md](ui/README.md)               |
 | `assistant/` | Gemini based AI assistant | imported by `ui/app.py`                 | [assistant/README.md](assistant/README.md) |
 
+## Validation issues
+
+![GeoJSON validation issues and auto-fix support](assets/validation-issues.svg)
+
 ## Getting started
 
 ### 1. Get the code
