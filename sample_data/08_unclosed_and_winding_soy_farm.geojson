@@ -1,0 +1,57 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-63.2500, -34.6200],
+            [-63.2300, -34.6200],
+            [-63.2300, -34.6400],
+            [-63.2500, -34.6400]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Pampas Soy Estate",
+        "location": "Córdoba, Argentina",
+        "product_type": "Soybeans (GM)",
+        "area_hectares": 320.5,
+        "owner": "Carlos Bianchi",
+        "remark": "ERROR: unclosed + exterior_not_ccw - Ring is not closed (first != last coordinate) AND exterior ring is clockwise instead of CCW per RFC 7946. Both are AUTO-FIXABLE by fix_geojson() via geojson_validator.fix_geometries()."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-63.2800, -34.5900],
+            [-63.2600, -34.5900],
+            [-63.2600, -34.6100],
+            [-63.2800, -34.6100],
+            [-63.2800, -34.5900]
+          ],
+          [
+            [-63.2730, -34.5980],
+            [-63.2670, -34.5980],
+            [-63.2670, -34.6020],
+            [-63.2730, -34.6020],
+            [-63.2730, -34.5980]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Pampas North Block",
+        "location": "Córdoba, Argentina",
+        "product_type": "Sunflowers",
+        "area_hectares": 180.0,
+        "owner": "Carlos Bianchi",
+        "remark": "ERROR: interior_not_cw - The interior ring (hole representing a water reservoir) is wound counterclockwise but RFC 7946 requires holes to be clockwise. AUTO-FIXABLE by fix_geojson()."
+      }
+    }
+  ]
+}

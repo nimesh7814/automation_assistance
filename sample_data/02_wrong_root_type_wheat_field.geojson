@@ -1,0 +1,23 @@
+{
+  "type": "Feature",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [2.3500, 48.8700],
+        [2.3650, 48.8700],
+        [2.3650, 48.8600],
+        [2.3500, 48.8600],
+        [2.3500, 48.8700]
+      ]
+    ]
+  },
+  "properties": {
+    "farm_name": "Beauce Wheat Estate",
+    "location": "Île-de-France, France",
+    "product_type": "Wheat",
+    "area_hectares": 210.0,
+    "owner": "Jean-Pierre Moreau",
+    "remark": "ERROR: wrong_root_type - Root type is 'Feature', not 'FeatureCollection', 'Polygon', or 'MultiPolygon'. The upload endpoint's normalize_root_type() will reject this with a 400 error."
+  }
+}

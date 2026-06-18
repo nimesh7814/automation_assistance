@@ -1,0 +1,34 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:25832"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [400000, 5700000],
+            [401500, 5700000],
+            [401500, 5698500],
+            [400000, 5698500],
+            [400000, 5700000]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Bayern Barley Fields",
+        "location": "Bavaria, Germany",
+        "product_type": "Barley",
+        "area_hectares": 225.0,
+        "owner": "Hans-Georg Müller",
+        "remark": "ERROR: unsupported_crs - CRS is 'EPSG:25832' (UTM zone 32N), which is not in the ALLOWED_CRS list. The build_upload_response() appends a crs error. Coordinates are in metres, not degrees."
+      }
+    }
+  ]
+}

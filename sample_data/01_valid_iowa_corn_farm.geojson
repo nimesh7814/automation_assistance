@@ -1,0 +1,51 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-93.6200, 41.5800],
+            [-93.6050, 41.5800],
+            [-93.6050, 41.5700],
+            [-93.6200, 41.5700],
+            [-93.6200, 41.5800]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Hawkeye Corn Fields",
+        "location": "Iowa, USA",
+        "product_type": "Corn",
+        "area_hectares": 142.3,
+        "owner": "Robert Keller",
+        "remark": "VALID - Clean FeatureCollection with a single Polygon, counterclockwise exterior ring, properly closed. No errors expected."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-93.6450, 41.5950],
+            [-93.6300, 41.5950],
+            [-93.6300, 41.5850],
+            [-93.6450, 41.5850],
+            [-93.6450, 41.5950]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Prairie Wind Soybeans",
+        "location": "Iowa, USA",
+        "product_type": "Soybeans",
+        "area_hectares": 98.7,
+        "owner": "Linda Hartmann",
+        "remark": "VALID - Second clean Polygon in the same FeatureCollection. All winding rules correct."
+      }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [36.8000, -1.2900],
+              [36.8150, -1.2900],
+              [36.8150, -1.3050],
+              [36.8000, -1.3050],
+              [36.8000, -1.2900]
+            ]
+          ],
+          [
+            [
+              [36.8300, -1.2700],
+              [36.8450, -1.2700],
+              [36.8450, -1.2850],
+              [36.8300, -1.2850],
+              [36.8300, -1.2700]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Rift Valley Floriculture",
+        "location": "Nairobi County, Kenya",
+        "product_type": "Roses (Export)",
+        "area_hectares": 34.8,
+        "owner": "James Mwangi",
+        "remark": "VALID - MultiPolygon is in ALLOWED_GEOMETRIES and will be accepted by filter_geometry_types()."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [36.8200, -1.2800]
+      },
+      "properties": {
+        "farm_name": "Farmhouse Office",
+        "location": "Nairobi County, Kenya",
+        "product_type": "N/A (administrative marker)",
+        "area_hectares": 0,
+        "owner": "James Mwangi",
+        "remark": "ERROR: geometry_type_not_allowed - Type is 'Point', which is not in ALLOWED_GEOMETRIES. filter_geometry_types() rejects this with message: 'Geometry type Point is not allowed. Only Polygon and MultiPolygon are accepted.'"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [36.8000, -1.2900],
+          [36.8450, -1.2900],
+          [36.8450, -1.3050]
+        ]
+      },
+      "properties": {
+        "farm_name": "Irrigation Canal Route",
+        "location": "Nairobi County, Kenya",
+        "product_type": "N/A (infrastructure)",
+        "area_hectares": 0,
+        "owner": "James Mwangi",
+        "remark": "ERROR: geometry_type_not_allowed - Type is 'LineString', not in ALLOWED_GEOMETRIES. Rejected with the same filter error as the Point above."
+      }
+    }
+  ]
+}

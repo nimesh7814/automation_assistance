@@ -1,0 +1,55 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2700, 13.0800],
+            [80.2850, 13.0800],
+            [80.2850, 13.0700],
+            [80.2700, 13.0700],
+            [80.2700, 13.0800]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Cauvery Delta Rice",
+        "location": "Tamil Nadu, India",
+        "product_type": "Rice (Basmati)",
+        "area_hectares": 54.1,
+        "owner": "Suresh Rajan",
+        "remark": "VALID - Control feature: a clean rice paddy polygon, present so the FeatureCollection is not entirely empty."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[]]
+      },
+      "properties": {
+        "farm_name": "Kaveri Spice Garden",
+        "location": "Tamil Nadu, India",
+        "product_type": "Turmeric",
+        "area_hectares": 28.0,
+        "owner": "Meena Krishnaswamy",
+        "remark": "ERROR: empty_geometry - Geometry exists but coordinates array is empty ([]). check_empty_geometry() flags this. It is AUTO-FIXABLE: fix_geojson() drops the feature entirely."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "farm_name": "Nilgiri Tea Terraces",
+        "location": "Tamil Nadu, India",
+        "product_type": "Tea",
+        "area_hectares": 33.5,
+        "owner": "Priya Nair",
+        "remark": "ERROR: empty_geometry (null geometry) - geometry field is literally null. check_empty_geometry() catches this too. Also AUTO-FIXABLE by dropping the feature."
+      }
+    }
+  ]
+}

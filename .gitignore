@@ -21,3 +21,11 @@ api\test.py
 geojson_viewer_v1.0.tar
 assets\Validation.ai
 api\test.py
+sample_data\01_valid_iowa_corn_farm.geojson
+sample_data\02_wrong_root_type_wheat_field.geojson
+sample_data\03_missing_properties_corn_field.geojson
+sample_data\04_self_intersection_sugarcane.geojson
+sample_data\05_invalid_geometry_type_road.geojson
+sample_data\06_empty_geometry_rice_farm.geojson
+sample_data\07_mixed_geometry_types_kenya.geojson
+sample_data\08_wrong_crs_brazil.geojson

@@ -1,0 +1,28 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [145.7700, -16.9200],
+            [145.7900, -16.9400],
+            [145.7900, -16.9200],
+            [145.7700, -16.9400],
+            [145.7700, -16.9200]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Cairns Cane Co.",
+        "location": "Queensland, Australia",
+        "product_type": "Sugarcane",
+        "area_hectares": 87.5,
+        "owner": "Darren McAllister",
+        "remark": "ERROR: self_intersection - The exterior ring crosses itself forming a bowtie/figure-8 (classic hourglass). check_self_intersection() will flag this. Cannot be auto-fixed."
+      }
+    }
+  ]
+}

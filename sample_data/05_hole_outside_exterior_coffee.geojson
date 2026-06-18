@@ -1,0 +1,35 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-46.6550, -23.5600],
+            [-46.6400, -23.5600],
+            [-46.6400, -23.5750],
+            [-46.6550, -23.5750],
+            [-46.6550, -23.5600]
+          ],
+          [
+            [-46.6000, -23.5000],
+            [-46.5950, -23.5000],
+            [-46.5950, -23.5050],
+            [-46.6000, -23.5050],
+            [-46.6000, -23.5000]
+          ]
+        ]
+      },
+      "properties": {
+        "farm_name": "Serra da Mantiqueira Coffee",
+        "location": "São Paulo, Brazil",
+        "product_type": "Coffee (Arabica)",
+        "area_hectares": 63.2,
+        "owner": "Ana Paula Figueiredo",
+        "remark": "ERROR: hole_outside - The interior ring (hole) is located entirely outside the exterior boundary. check_hole_outside() detects this via shapely. Cannot be auto-fixed."
+      }
+    }
+  ]
+}
