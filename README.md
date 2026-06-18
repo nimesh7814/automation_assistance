@@ -7,10 +7,30 @@ A dashboard for working with GeoJSON polygon data: upload a file, view it on a m
 Two services, no database, no auth — each browser session gets its own in-memory dataset on the API, scoped by an `X-Session-ID` header. A session's data is dropped automatically after 30 minutes of inactivity (configurable via `SESSION_TTL_MINUTES`) so abandoned sessions don't grow memory unbounded.
 
 | Folder       | What it is                | Default URL                             | README                                     |
-| ------------ | ------------------------- | --------------------------------------- | ------------------------------------------ | --- |
+| ------------ | ------------------------- | --------------------------------------- | ------------------------------------------ |
 | `api/`       | FastAPI backend           | http://localhost:8000 (docs at `/docs`) | [api/README.md](api/README.md)             |
 | `ui/`        | Streamlit dashboard       | http://localhost:8501                   | [ui/README.md](ui/README.md)               |
-| `assistant/` | Gemini based AI assistant | imported by `ui/app.py`                 | [assistant/README.md](assistant/README.md) | W   |
+| `assistant/` | Gemini based AI assistant | imported by `ui/app.py`                 | [assistant/README.md](assistant/README.md) |
+
+## Validation checks and auto-fix support
+
+The Validate tab checks for ring closure, winding order, weak polygon rings, holes crossing or sitting outside the exterior boundary, self-intersections, and empty geometries. Simple mechanical issues can be auto-fixed; ambiguous geometry problems are reported for manual editing.
+
+![GeoJSON validation issues and auto-fix support](assets/validation-issues.svg)
+
+Auto-fixable issues:
+
+- `unclosed`: closes the polygon ring.
+- `exterior_not_ccw`: rewinds the exterior ring to counter-clockwise.
+- `interior_not_cw`: rewinds hole rings to clockwise.
+- `empty_geometry`: removes features that have no usable geometry.
+
+Manual-fix issues:
+
+- `less_three_unique_nodes`: redraw or delete the degenerate polygon.
+- `inner_and_exterior_ring_intersect`: manually repair the hole or exterior ring.
+- `self_intersection`: manually reshape the crossing polygon.
+- `hole_outside`: move, remove, or redraw the misplaced hole.
 
 ## Getting started
 

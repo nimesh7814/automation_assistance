@@ -57,7 +57,7 @@ All endpoints (except `/`) require the `X-Session-ID` header. Errors come back i
 
 ## What gets checked, in plain terms
 
-Validation is powered by the [`geojson_validator`](https://github.com/chrieke/geojson-validator) package, layered with three custom checks (see `functions/validate_fix.py`). There are two separate validation passes: structure checks happen automatically on upload, geometry checks happen when you call `/validate`. There are automatic fixes that supports included with this API as well.
+Validation is powered by the [`geojson_validator`](https://github.com/chrieke/geojson-validator) package, layered with three custom checks (see `functions/validate_fix.py`). There are two separate validation passes: structure checks happen automatically on upload, and geometry checks happen when you call `/validate`. The API also includes automatic fixes for the issues that can be repaired safely.
 
 ![GeoJSON validation issues and auto-fix support](../assets/validation-issues.svg)
 
@@ -84,6 +84,26 @@ Validation is powered by the [`geojson_validator`](https://github.com/chrieke/ge
 | Hole entirely outside the boundary _(custom check)_ | A hole sits completely outside its own exterior ring.                                     | No — needs manual fixing.                                                        |
 
 **The rule of thumb**: anything that's a simple mechanical fix (closing a ring, flipping winding direction, dropping something with literally nothing in it) gets auto-fixed by `/fix`. Anything where there's more than one reasonable way to fix it — a self-crossing shape, a misplaced hole, a near-empty ring — is left for a human to redraw on the Edit tab, because guessing wrong would silently corrupt the data.
+
+### Auto-fix behavior
+
+`POST /fix` handles only issues that can be corrected mechanically without guessing the intended shape:
+
+| Issue key | Auto-fix action |
+| --- | --- |
+| `unclosed` | Adds the missing closing coordinate to the ring. |
+| `exterior_not_ccw` | Rewinds the exterior ring to counter-clockwise order. |
+| `interior_not_cw` | Rewinds interior rings or holes to clockwise order. |
+| `empty_geometry` | Removes the feature because there is no geometry to repair. |
+
+The following issues are intentionally not auto-fixed because the correct geometry is ambiguous:
+
+| Issue key | Manual action needed |
+| --- | --- |
+| `less_three_unique_nodes` | Redraw or delete the feature. |
+| `inner_and_exterior_ring_intersect` | Repair the exterior ring or hole placement by hand. |
+| `self_intersection` | Reshape the polygon so edges no longer cross. |
+| `hole_outside` | Move, remove, or redraw the hole inside the exterior boundary. |
 
 ### What's deliberately _not_ checked
 
