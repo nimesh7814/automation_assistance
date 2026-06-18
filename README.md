@@ -7,14 +7,10 @@ A dashboard for working with GeoJSON polygon data: upload a file, view it on a m
 Two services, no database, no auth — each browser session gets its own in-memory dataset on the API, scoped by an `X-Session-ID` header. A session's data is dropped automatically after 30 minutes of inactivity (configurable via `SESSION_TTL_MINUTES`) so abandoned sessions don't grow memory unbounded.
 
 | Folder       | What it is                | Default URL                             | README                                     |
-| ------------ | ------------------------- | --------------------------------------- | ------------------------------------------ |
+| ------------ | ------------------------- | --------------------------------------- | ------------------------------------------ | --- |
 | `api/`       | FastAPI backend           | http://localhost:8000 (docs at `/docs`) | [api/README.md](api/README.md)             |
 | `ui/`        | Streamlit dashboard       | http://localhost:8501                   | [ui/README.md](ui/README.md)               |
-| `assistant/` | Gemini based AI assistant | imported by `ui/app.py`                 | [assistant/README.md](assistant/README.md) |
-
-## Validation issues
-
-![GeoJSON validation issues and auto-fix support](assets/validation-issues.svg)
+| `assistant/` | Gemini based AI assistant | imported by `ui/app.py`                 | [assistant/README.md](assistant/README.md) | W   |
 
 ## Getting started
 

@@ -57,7 +57,7 @@ All endpoints (except `/`) require the `X-Session-ID` header. Errors come back i
 
 ## What gets checked, in plain terms
 
-Validation is powered by the [`geojson_validator`](https://github.com/chrieke/geojson-validator) package, layered with three custom checks (see `functions/validate_fix.py`). There are two separate validation passes: structure checks happen automatically on upload, geometry checks happen when you call `/validate`.
+Validation is powered by the [`geojson_validator`](https://github.com/chrieke/geojson-validator) package, layered with three custom checks (see `functions/validate_fix.py`). There are two separate validation passes: structure checks happen automatically on upload, geometry checks happen when you call `/validate`. There are automatic fixes that supports included with this API as well.
 
 ![GeoJSON validation issues and auto-fix support](../assets/validation-issues.svg)
 
