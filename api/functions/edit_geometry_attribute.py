@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from functions.session import get_dataset
+from functions.session import check_feature_id, get_dataset
 
 
 # Replace the geometry of an existing feature
@@ -7,10 +7,7 @@ def update_geometry_geojson(session_id: str, feature_id: int, new_geometry: dict
 
     data = get_dataset(session_id)
     features = data["features"]
-
-    # Check the feature_id is within range
-    if feature_id < 0 or feature_id >= len(features):
-        raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found. Valid range is 0 to {len(features) - 1}.")
+    check_feature_id(feature_id, features)
 
     # Check a geometry was sent at all
     if not isinstance(new_geometry, dict):
@@ -68,10 +65,7 @@ def update_properties_geojson(session_id: str, feature_id: int, new_properties: 
 
     data = get_dataset(session_id)
     features = data["features"]
-
-    # Check the feature_id is within range
-    if feature_id < 0 or feature_id >= len(features):
-        raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found. Valid range is 0 to {len(features) - 1}.")
+    check_feature_id(feature_id, features)
 
     # Replace the properties
     features[feature_id]["properties"] = new_properties

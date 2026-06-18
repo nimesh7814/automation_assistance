@@ -4,14 +4,13 @@ import time
 from contextlib import asynccontextmanager
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Query, Depends
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from functions.logging import configure_logging, log_request, logger
 
-configure_logging()
-
 # Import functions from functions folder
-from functions.upload_input import upload_geojson
+from functions.upload import upload_geojson
 from functions.validate_fix import validate_geometry, fix_geojson
 from functions.duplicates import detect_duplicates
 from functions.session import clear_geojson, get_session_id, sweep_idle_sessions
@@ -20,6 +19,11 @@ from functions.delete_feature import delete_feature_geojson
 from functions.export import export as export_func
 from functions.get_feature import fetch_all
 from functions.stats import get_area_summary
+
+# geojson_validator resets the global loguru logger as an import-time side
+# effect (logger.remove() + its own stderr-only sink), so configure_logging()
+# must run after every import that could pull it in, or it gets clobbered.
+configure_logging()
 
 
 @asynccontextmanager
@@ -68,6 +72,26 @@ async def http_exception_handler(_request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"message": message, "errors": errors},
+    )
+
+
+# FastAPI's own request-validation errors (bad query params, malformed JSON
+# bodies, wrong types) bypass HTTPException and would otherwise come back as
+# {"detail": [...]} instead of our {"message": ..., "errors": [...]} shape.
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request: Request, exc: RequestValidationError):
+    errors = [
+        {
+            "feature": None,
+            "path": ".".join(str(part) for part in error["loc"]),
+            "type": "validation",
+            "message": error["msg"],
+        }
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content={"message": "Request validation failed.", "errors": errors},
     )
 
 

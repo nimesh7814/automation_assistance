@@ -53,7 +53,7 @@ or start the whole stack (API + UI + log viewer) the same way, dropping `api` fr
 | `GET`    | `/export`                                                      | Download the current dataset as a `.geojson` file.                                                                                  |
 | `DELETE` | `/data`                                                        | Clear the session and start over.                                                                                                   |
 
-All endpoints (except `/`) require the `X-Session-ID` header. Errors come back in the same shape: `{"message": "...", "errors": [...]}` with an appropriate HTTP status code (e.g. `400` for bad input, `404` if nothing has been uploaded yet for that session). `errors` is a list of details (e.g. which feature had a problem) and is empty when there is nothing extra to report.
+All endpoints (except `/`) require the `X-Session-ID` header. Errors come back in the same shape: `{"message": "...", "errors": [...]}` with an appropriate HTTP status code (e.g. `400` for bad input, `404` if nothing has been uploaded yet for that session) — including FastAPI's own request-validation errors (a malformed JSON body, a query parameter out of its allowed range), which are normalized into this same shape rather than FastAPI's default `{"detail": [...]}`. `errors` is a list of details (e.g. which feature had a problem) and is empty when there is nothing extra to report.
 
 ## What gets checked, in plain terms
 
@@ -91,9 +91,9 @@ The `geojson_validator` library can also check for coordinates outside the valid
 
 [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946) (the GeoJSON standard) section 4 is explicit: every GeoJSON coordinate is assumed to be longitude/latitude in WGS84 (`urn:ogc:def:crs:OGC::CRS84`), full stop. The older `crs` member from the 2008 GeoJSON spec was _deliberately removed_ in RFC 7946 — the spec says alternative CRSes caused too many interoperability problems, so a fully-compliant GeoJSON file shouldn't carry a `crs` member at all.
 
-In practice, plenty of real-world `.geojson` files (often exported from older GIS tools like QGIS) still include a `crs` member anyway — sometimes pointing at a genuinely different system, like Web Mercator (`EPSG:3857`). `geojson_validator` actually supports flagging this (`validate_structure(..., check_crs=True)` reports a `crs` member as an error), but this app calls it with the default (`check_crs=False`), so **a `crs` member currently passes through completely silently.**
+In practice, plenty of real-world `.geojson` files (often exported from older GIS tools like QGIS) still include a `crs` member anyway — sometimes pointing at a genuinely different system, like Web Mercator (`EPSG:3857`). `functions/upload.py` checks for this on every upload: if the file has no `crs` member, or its `crs.properties.name` is exactly `urn:ogc:def:crs:OGC:1.3:CRS84`, the CRS is accepted; anything else (a different EPSG code, a malformed `crs` object, etc.) is flagged as a `crs`-type error in the upload response and the session-wide CRS status (also returned from `GET /features`, so it survives a page reload). The UI reads that status to disable the Validate, Duplicates, Edit, Export, and Assistant tabs with an explicit error until a correctly-projected file is uploaded.
 
-That matters because nothing downstream reprojects coordinates — area calculations (`functions/stats.py`) and the map both just assume every coordinate is already WGS84 lon/lat. If a file's `crs` member says otherwise and the file's actual coordinates aren't WGS84, the app will compute areas and plot positions as if they were, with no warning. Turning on `check_crs=True` would at least flag the presence of a `crs` member; actually reprojecting non-WGS84 coordinates would need `pyproj` transformation logic that doesn't exist yet.
+**Flagging is not the same as reprojecting.** Rejected/flagged files still load — the app doesn't transform their coordinates into WGS84, it just refuses to compute areas or plot positions from them until you fix the source file. Area calculations (`functions/stats.py`) and the map both assume every coordinate is already WGS84 lon/lat; there is no `pyproj`-based transformation step. Re-export the file in WGS84/CRS84 (e.g. "reproject" in QGIS) or strip its `crs` member before re-uploading.
 
 `/fix` attempts to repair the auto-fixable subset of issues above and reports what was fixed and what is still left afterwards.
 
@@ -101,8 +101,8 @@ That matters because nothing downstream reprojects coordinates — area calculat
 
 - **File upload only.** `/upload/file` requires an actual multipart file — there's no endpoint to submit raw GeoJSON text directly in a request body.
 - **One file at a time.** `/upload/file` replaces the session's whole dataset (`set_dataset` overwrites, it doesn't merge) — uploading a second file discards the first rather than combining them. Loading several client files into one working set isn't supported yet.
-- **`.geojson` only.** KML, Shapefile (`.shp`/`.shx`/`.dbf`), and plain `.json` aren't accepted, even if their contents are otherwise valid GeoJSON-shaped data. Supporting those would mean converting them to GeoJSON on upload (e.g. via `fiona`/GDAL for KML and Shapefile) — that conversion step doesn't exist yet, but would be a reasonable thing to add.
-- **No CRS detection or reprojection** — see above.
+- **File extension isn't enforced by the API.** `/upload/file` only checks that the content parses as GeoJSON-shaped JSON — it accepts any filename/extension, including a `.txt` or `.json` file that happens to contain valid GeoJSON. The Streamlit uploader restricts the file picker to `.geojson` client-side, but that's a UX nicety, not a server-side guarantee. KML and Shapefile (`.shp`/`.shx`/`.dbf`) content still won't parse as JSON and will be rejected as malformed, since there's no conversion step (e.g. via `fiona`/GDAL) for those formats.
+- **CRS is flagged, not reprojected.** Uploads with a `crs` member other than WGS84/CRS84 are detected and block the rest of the app from trusting that session's data (see above) — but the app cannot transform non-WGS84 coordinates into WGS84 itself. The only fix today is re-exporting the source file in WGS84/CRS84.
 - **In-memory sessions only.** Session data lives in a Python dictionary. It is fast and simple for a demo or internal QA tool, but restarting the API loses all uploaded data. Production use would need persistent storage such as PostGIS, PostgreSQL JSONB, object storage, or another database-backed session store.
 - **No authentication or authorization.** The API trusts whoever can reach it. In production it should sit behind SSO or Cloudflare Access, and the API itself should still enforce authorization instead of relying only on the network edge.
 - **Feature IDs are not stable.** Endpoints use the feature's current list index. Deleting feature `2` shifts every later feature ID. A production version should assign stable UUIDs and keep those IDs through edits and exports.
@@ -115,7 +115,3 @@ That matters because nothing downstream reprojects coordinates — area calculat
 ## Logging
 
 Requests and unexpected errors are logged to the console (visible with `docker compose logs api` or via Dozzle — see the root README) and to a rotating file under `LOG_DIR` (default `logs`, bind-mounted to `../logs/api` on the host by `docker-compose.yml`, so they survive container removal/rebuilds, not just restarts). Any error that isn't already a handled `HTTPException` is logged with a full traceback and returns a generic `500` message to the client, so internal details are never leaked to the UI.
-
-## Sample data
-
-A sample farm boundary file is provided at `sample_data/Farm_file.geojson` (repo root) — useful for trying out the upload and the other endpoints.

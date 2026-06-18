@@ -92,6 +92,7 @@ The assistant is optional. If it is unavailable, the rest of the dashboard still
 - It uses exact-match property search, not semantic search.
 - It does not keep a separate audit record beyond normal application logs and the visible tool trace.
 - It does not redact uploaded property values before sending tool results to Gemini.
+- It refuses to answer at all if the loaded file's CRS isn't WGS84/CRS84 (flagged at upload — see `api/README.md`), since any area or position it reported would be wrong; it cannot reproject the data itself.
 
 ## Packaging
 

@@ -1,9 +1,14 @@
 services:
+  # Single-container build (api + ui via start.sh) for hosts that only run one
+  # container per service (e.g. the live demo). Not part of the default local
+  # stack - run it on its own with `docker compose --profile single up app -d`,
+  # not alongside api/ui/logs below (they'd collide on the same ports).
   app:
     build:
       context: .
       dockerfile: Dockerfile
     image: geojson-viewer:latest
+    profiles: ["single"]
     env_file:
       - path: ./ui/.env
         required: false

@@ -47,6 +47,7 @@ def render_upload_tab() -> None:
                     st.session_state["features"] = (
                         result.get("processed_geojson", {}).get("features", [])
                     )
+                    st.session_state["crs_status"] = result.get("crs")
                     st.session_state.pop("validate_result", None)
                     st.session_state.pop("duplicate_result", None)
                     st.session_state.pop("upload_focus_id", None)  # reset to full extent
@@ -76,6 +77,7 @@ def render_upload_tab() -> None:
         if result:
             loaded = result.get("selected_features", 0)
             total = result.get("total_features", loaded)
+            crs = result.get("crs") or {}
             if result.get("valid"):
                 st.success(
                     f"All {loaded} feature{'s' if loaded != 1 else ''} accepted.",
@@ -90,9 +92,35 @@ def render_upload_tab() -> None:
                     with st.expander("Skipped features", icon=":material/info:", expanded=False):
                         st.dataframe(pd.DataFrame(result["errors"]), hide_index=True)
 
+            if crs.get("present"):
+                if crs.get("accepted"):
+                    st.success(
+                        f"CRS accepted: {crs.get('name')}",
+                        icon=":material/check_circle:",
+                    )
+                else:
+                    st.warning(
+                        "CRS key found, but it is not CRS84. The app assumes WGS84 lon/lat and does not reproject coordinates.",
+                        icon=":material/travel_explore:",
+                    )
+                with st.expander("CRS value", icon=":material/data_object:", expanded=False):
+                    st.json(crs.get("value"))
+            else:
+                st.info("No top-level CRS key found in the uploaded GeoJSON.", icon=":material/info:")
+
     with right:
         features = st.session_state.get("features", [])
-        if features:
+        crs = st.session_state.get("crs_status")
+        crs_ok = not crs or crs.get("accepted", True)
+
+        if features and not crs_ok:
+            st.info(
+                "Map and attribute table are hidden until the CRS issue is resolved "
+                "(see the warning on the left) — positions computed from this file "
+                "would be unreliable.",
+                icon=":material/public_off:",
+            )
+        elif features:
             prop_df = flatten_properties(features)
             n_up = len(prop_df)
             _focus = st.session_state.get("upload_focus_id")

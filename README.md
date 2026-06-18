@@ -2,7 +2,7 @@
 
 **Live demo:** [http://geojson.akalanka.me](http://geojson.akalanka.me)
 
-A dashboard for working with GeoJSON polygon data: upload a file, view it on a map and in a table, check for problems (invalid/duplicate geometries), edit it, export the result, and ask a Gemini-powered assistant questions about the loaded data.
+A dashboard for working with GeoJSON polygon data: upload a file, view it on a map and in a table, check for problems (invalid/duplicate geometries, unsupported coordinate reference systems), edit it, export the result, and ask a Gemini-powered assistant questions about the loaded data.
 
 Two services, no database, no auth — each browser session gets its own in-memory dataset on the API, scoped by an `X-Session-ID` header. A session's data is dropped automatically after 30 minutes of inactivity (configurable via `SESSION_TTL_MINUTES`) so abandoned sessions don't grow memory unbounded.
 
@@ -97,3 +97,9 @@ Logs are also written to a rotating file per service (`api.log` / `ui.log`, 5 MB
 ## Sample data
 
 A sample farm boundary file is at `sample_data/Farm_file.geojson`, useful for trying out upload, validation, and the other tabs.
+
+## Limitations
+
+- **No reprojection.** The app only works with WGS84/CRS84 coordinates. If an uploaded file declares a different coordinate reference system (e.g. `EPSG:3857`), the API flags it on upload and the UI blocks Validate, Duplicates, Edit, Export, and Assistant with an explicit error — it does not transform the coordinates for you. Re-export the file in WGS84/CRS84 and re-upload it. See [api/README.md](api/README.md#crs-coordinate-reference-system--what-rfc-7946-says-and-what-this-app-actually-does) for details.
+- **No persistence.** All data lives in memory per browser session; restarting the API or letting a session sit idle past `SESSION_TTL_MINUTES` clears it.
+- **No authentication.** Anyone who can reach the API or UI can use them — there's no login or per-user access control.

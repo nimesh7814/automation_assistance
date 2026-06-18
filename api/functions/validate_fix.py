@@ -111,9 +111,12 @@ def run_custom_checks(features: list) -> dict:
     self_ix = check_self_intersection(features)
     hole = check_hole_outside(features)
 
-    if empty: results["empty_geometry"] = empty
-    if self_ix: results["self_intersection"] = self_ix
-    if hole: results["hole_outside"] = hole
+    if empty:
+        results["empty_geometry"] = empty
+    if self_ix:
+        results["self_intersection"] = self_ix
+    if hole:
+        results["hole_outside"] = hole
 
     return results
 

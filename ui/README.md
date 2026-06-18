@@ -6,12 +6,14 @@ The UI uses a generated `X-Session-ID` so each browser session talks to its own 
 
 ## Tabs
 
-- **Upload**: drop a `.geojson` file, see accepted and skipped features, preview the geometries on a map, and inspect attributes in a selectable table.
+- **Upload**: drop a `.geojson` file, see accepted and skipped features, preview the geometries on a map, inspect attributes in a selectable table, and see whether the file's coordinate reference system (CRS) was accepted.
 - **Validate**: run geometry validation for invalid rings, winding problems, self-intersections, empty geometry, and hole placement issues. Auto-fix the subset that is safe to repair mechanically.
 - **Duplicates**: scan for duplicate geometries and intersecting geometry groups with an adjustable threshold. Duplicate features can be removed from the session.
 - **Edit**: show or hide features, select a feature, edit its attributes, draw new polygons, delete features, reshape the selected geometry, or paste a GeoJSON geometry object.
 - **Export**: preview the current table and download the session's current GeoJSON.
 - **Assistant**: ask Gemini-powered natural-language questions about the loaded data through fixed read-only tools. The assistant is disabled unless `GEMINI_API_KEY` is configured.
+
+Validate, Duplicates, Edit, Export, and Assistant all check the uploaded file's CRS first: if the API flagged it as not WGS84/CRS84 (see the root and `api/` READMEs), each of those tabs shows a blocking error instead of its normal content, since any area, position, or edit computed from non-WGS84 coordinates would be wrong. Re-upload the file in WGS84/CRS84 to clear it.
 
 ## Running Locally
 
@@ -84,6 +86,7 @@ docker compose logs ui --tail 50
 - **Manual geometry JSON editing needs care.** The JSON editor saves a geometry object if the API accepts its basic type and coordinate structure. Users should run Validate after manual geometry edits.
 - **Symbology is not exported.** Map colors help inspect the current session but are not written into the exported GeoJSON.
 - **Assistant availability depends on Gemini.** If `GEMINI_API_KEY` is missing, invalid, rate-limited, or the Gemini API is unreachable, the Assistant tab cannot answer. The rest of the app still works.
+- **CRS is flagged, not reprojected.** The app detects when an uploaded file's CRS isn't WGS84/CRS84 and blocks the tabs that would otherwise compute wrong areas or positions from it, but it cannot transform the coordinates itself — the only fix is re-exporting the source file in WGS84/CRS84 before re-uploading.
 
 ## Useful Improvements To Add Next
 
@@ -91,5 +94,5 @@ docker compose logs ui --tail 50
 - Add undo/version history for edits, auto-fixes, and duplicate removals.
 - Add stable feature IDs so deleting one feature does not shift later IDs.
 - Add table-level bulk editing for common attribute cleanup tasks.
-- Add CRS warnings before mapping and area calculation.
+- Add CRS reprojection (e.g. via `pyproj`) instead of only flagging non-WGS84 files.
 - Add background jobs, progress indicators, pagination, and spatial indexes for larger datasets.

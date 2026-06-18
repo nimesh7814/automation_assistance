@@ -316,6 +316,17 @@ def render_assistant_tab(features: list[dict], api_request) -> None:
         st.info("Upload a GeoJSON file first, then come back to ask questions about it.", icon=":material/info:")
         return
 
+    crs = st.session_state.get("crs_status")
+    if crs and not crs.get("accepted", True):
+        st.error(
+            f"**Unsupported CRS — `{crs.get('name') or crs.get('value')}`.** This file declares "
+            "a coordinate reference system other than WGS84/CRS84, so any area/position the "
+            "assistant reports here could be wrong. Re-export the file in WGS84/CRS84 and "
+            "upload it again before asking questions.",
+            icon=":material/public_off:",
+        )
+        return
+
     messages = st.session_state.setdefault("ai_messages", [])
     sent_count = st.session_state.setdefault("ai_sent_count", 0)
     message_limit = _get_message_limit()

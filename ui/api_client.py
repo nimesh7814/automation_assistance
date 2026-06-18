@@ -68,7 +68,13 @@ def api_request(method: str, path: str, raw: bool = False, **kwargs) -> Any:
 
     content_type = response.headers.get("content-type", "")
     if "application/json" in content_type:
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            # A 2xx response with unparsable JSON shouldn't crash the page with
+            # a raw traceback - surface it the same way as any other API error.
+            logger.warning("%s %s -> 200 with unparsable JSON body", method, path)
+            raise APIError("The API returned an unreadable response.") from exc
     return response.content
 
 
@@ -100,6 +106,7 @@ def refresh_features(show_errors: bool = False) -> list[dict]:
         result = api_request("GET", "/features")
         features = result.get("features", [])
         st.session_state["features"] = features
+        st.session_state["crs_status"] = result.get("crs")
         st.session_state["api_ok"] = True
         return features
     except APIError as exc:
@@ -117,6 +124,7 @@ def clear_data() -> None:
         pass
     for key in [
         "features",
+        "crs_status",
         "upload_result",
         "validate_result",
         "fix_result",
@@ -152,4 +160,21 @@ def require_api_connection(key: str = "retry_api") -> bool:
     if st.button("Retry connection", icon=":material/refresh:", key=key):
         st.session_state.pop("_health_ts", None)
         st.rerun()
+    return False
+
+
+def require_valid_crs() -> bool:
+    """Show a blocking error when the loaded file's CRS isn't WGS84/CRS84 (or absent);
+    return True only when it's safe to trust areas/positions computed from this data."""
+    crs = st.session_state.get("crs_status")
+    if not crs or crs.get("accepted", True):
+        return True
+    st.error(
+        f"**Unsupported CRS — `{crs.get('name') or crs.get('value')}`.** This file declares "
+        "a coordinate reference system other than WGS84/CRS84, which this app doesn't "
+        "support. Areas, positions, and edits here would be unreliable, so this tab is "
+        "disabled. Re-export the file in WGS84/CRS84 (or remove the `crs` member) and "
+        "upload it again.",
+        icon=":material/public_off:",
+    )
     return False

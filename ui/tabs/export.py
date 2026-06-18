@@ -2,7 +2,7 @@ import logging
 
 import streamlit as st
 
-from api_client import APIError, api_request, require_api_connection
+from api_client import APIError, api_request, require_api_connection, require_valid_crs
 from map_utils import flatten_properties
 
 logger = logging.getLogger("geojson_dashboard.ui.export")
@@ -13,6 +13,9 @@ def render_export_tab(features: list[dict]) -> None:
     st.caption("Download the current session as a GeoJSON file after validation, cleanup, or edits.")
 
     if not require_api_connection("retry_export"):
+        return
+
+    if not require_valid_crs():
         return
 
     if not features:

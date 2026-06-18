@@ -1,4 +1,4 @@
-from functions.session import get_dataset
+from functions.session import get_crs_status, get_dataset
 
 # Fetch all features in the current session
 def fetch_all(session_id: str):
@@ -10,5 +10,6 @@ def fetch_all(session_id: str):
     # Return all features with a count
     return {
         "total_features": len(features),
-        "features": features
+        "features": features,
+        "crs": get_crs_status(session_id),
     }

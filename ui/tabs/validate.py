@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 import streamlit as st
 
-from api_client import APIError, api_request, refresh_features, require_api_connection
+from api_client import APIError, api_request, refresh_features, require_api_connection, require_valid_crs
 
 logger = logging.getLogger("geojson_dashboard.ui.validate")
 
@@ -13,6 +13,9 @@ def render_validate_tab(features: list[dict]) -> None:
     st.caption("Find invalid rings, winding problems, self-intersections, and hole placement issues.")
 
     if not require_api_connection("retry_validate"):
+        return
+
+    if not require_valid_crs():
         return
 
     if not features:

@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 
-from api_client import APIError, api_request, refresh_features, require_api_connection
+from api_client import APIError, api_request, refresh_features, require_api_connection, require_valid_crs
 from map_utils import (
     MAP_HEIGHT,
     _drawing_to_geometry,
@@ -66,6 +66,9 @@ def render_edit_tab(features: list[dict]) -> None:
     )
 
     if not require_api_connection("retry_edit"):
+        return
+
+    if not require_valid_crs():
         return
 
     if not features:

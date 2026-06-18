@@ -30,13 +30,32 @@ def get_dataset(session_id: str) -> dict:
     return data
 
 
+def check_feature_id(feature_id: int, features: list) -> None:
+    """Raise 404 if feature_id is out of range. Shared by every route that
+    targets a single feature by its list index (geometry/properties edit, delete)."""
+    if feature_id < 0 or feature_id >= len(features):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Feature {feature_id} not found. Valid range is 0 to {len(features) - 1}.",
+        )
+
+
 def set_dataset(session_id: str, data: dict) -> None:
     _sessions.setdefault(session_id, {})["data"] = data
+
+
+def set_crs_status(session_id: str, crs_status: dict | None) -> None:
+    _sessions.setdefault(session_id, {})["crs"] = crs_status
+
+
+def get_crs_status(session_id: str) -> dict | None:
+    return _sessions.get(session_id, {}).get("crs")
 
 
 def clear_geojson(session_id: str) -> dict:
     if session_id in _sessions:
         _sessions[session_id]["data"] = None
+        _sessions[session_id]["crs"] = None
     return {"message": "Session data cleared."}
 
 
