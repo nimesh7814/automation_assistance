@@ -75,8 +75,9 @@ def render_upload_tab() -> None:
 
         result = st.session_state.get("upload_result")
         if result:
-            loaded = result.get("selected_features", 0)
-            total = result.get("total_features", loaded)
+            summary = result.get("summary") or {}
+            loaded = summary.get("selected_features", 0)
+            total = summary.get("total_features", loaded)
             crs = result.get("crs") or {}
             if result.get("valid"):
                 st.success(

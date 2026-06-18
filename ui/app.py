@@ -143,9 +143,9 @@ with st.sidebar:
     sb_features = _sb_features
     if sb_features:
         st.divider()
-        up = st.session_state.get("upload_result") or {}
-        loaded = up.get("selected_features", len(sb_features))
-        total = up.get("total_features", loaded)
+        up_summary = (st.session_state.get("upload_result") or {}).get("summary") or {}
+        loaded = up_summary.get("selected_features", len(sb_features))
+        total = up_summary.get("total_features", loaded)
         skipped = max(total - loaded, 0)
         file_name = st.session_state.get("file_name", "Unknown")
 

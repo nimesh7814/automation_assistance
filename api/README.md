@@ -40,7 +40,7 @@ or start the whole stack (API + UI + log viewer) the same way, dropping `api` fr
 | Method   | Path                                                           | Description                                                                                                                         |
 | -------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`    | `/`                                                            | Health check (`{"message": "API Connected"}`).                                                                                      |
-| `POST`   | `/upload/file`                                                 | Upload a `.geojson` file (multipart form, field name `file`).                                                                       |
+| `POST`   | `/upload/file`                                                 | Upload a `.geojson` file (multipart form, field name `file`). Accepts a `FeatureCollection`, or a bare `Polygon`/`MultiPolygon` (wrapped into a one-feature collection). |
 | `GET`    | `/features`                                                    | Return all features currently in the session.                                                                                       |
 | `GET`    | `/stats/area`                                                  | Total and per-feature area in hectares.                                                                                             |
 | `GET`    | `/validate`                                                    | Check the geometries for structural and topology issues.                                                                            |
@@ -61,7 +61,50 @@ Validation is powered by the [`geojson_validator`](https://github.com/chrieke/ge
 
 ![GeoJSON validation issues and auto-fix support](../assets/validation-issues.svg)
 
-### On upload (structure checks, always run)
+### What happens, in order, when you call `POST /upload/file`
+
+Each step can either stop the upload outright (4xx, nothing is loaded into the session) or just flag/drop individual features and continue. `functions/upload.py` runs them in this order:
+
+| # | Step                                  | Stops the upload entirely?                                                          | Only drops/flags individual features?                                                             |
+| - | -------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| 1 | Decode the file as UTF-8               | Yes — any other encoding (e.g. Latin-1) is rejected with a `400` (`type: "encoding"`). | —                                                                                                      |
+| 2 | Parse as JSON / GeoJSON (`geojson.loads`) | Yes — invalid JSON syntax is a `400` (`type: "json"`); a structurally broken document the `geojson` library itself can't construct (e.g. a `FeatureCollection` with no `features` array, coordinates that aren't numbers) is a `400` (`type: "structure"`). | —                                                                                                      |
+| 3 | Check the top-level `type`             | Yes — anything other than `FeatureCollection`, `Polygon`, or `MultiPolygon` is a `400` (`type: "filter"`). | A bare `Polygon`/`MultiPolygon` is wrapped into a one-feature `FeatureCollection` and continues normally. |
+| 4 | Validate structure (`geojson_validator`) | No                                                                                     | Per-feature problems (missing `type`/`geometry`/`properties`, bad coordinate shape) are reported against that feature's index and the feature is dropped from the loaded set. |
+| 5 | Filter geometry type                   | No                                                                                     | Only `Polygon`/`MultiPolygon` features are kept; `Point`, `LineString`, `GeometryCollection`, missing geometry, etc. are dropped and reported. |
+| 6 | Check there's at least one accepted feature | Yes — if every feature was dropped by steps 4–5, it's a `400` listing why each one was rejected. | —                                                                                                      |
+| 7 | Check the CRS                          | No                                                                                     | A `crs` member other than WGS84/CRS84 is flagged (`type: "crs"`) in the response and recorded for the session — see [CRS](#crs-coordinate-reference-system--what-rfc-7946-says-and-what-this-app-actually-does) below. The file still loads. |
+
+### Upload response shape
+
+```json
+{
+  "message": "GeoJSON uploaded successfully.",
+  "valid": true,
+  "errors": [
+    {
+      "feature": 1,
+      "path": "/features/1",
+      "geometry_type": null,
+      "type": "structure",
+      "message": "Missing 'type' member",
+      "properties": { "fid": 2 },
+      "value": null
+    }
+  ],
+  "summary": {
+    "total_features": 5,
+    "selected_features": 4,
+    "rejected_features": 1
+  },
+  "crs": { "present": false, "name": null, "accepted": true, "value": null, "description": "..." },
+  "processed_geojson": { "type": "FeatureCollection", "features": [ "...accepted features..." ] }
+}
+```
+
+`valid` is `false` whenever `errors` is non-empty (skipped features and/or an unsupported CRS) but the upload can still be `200 OK` as long as at least one feature was accepted — only a totally-empty result (step 6 above) is a `400`. Each entry in `errors` always has all seven keys; most are `null` when not applicable for that error's `type` (`encoding`, `json`, `structure`, `coordinate`, `filter`, or `crs`).
+
+### Structure checks (step 4 above, always run on upload)
 
 | Check                                                     | What it catches                                                                                                                                                                                     |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -113,7 +156,12 @@ The `geojson_validator` library can also check for coordinates outside the valid
 
 [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946) (the GeoJSON standard) section 4 is explicit: every GeoJSON coordinate is assumed to be longitude/latitude in WGS84 (`urn:ogc:def:crs:OGC::CRS84`), full stop. The older `crs` member from the 2008 GeoJSON spec was _deliberately removed_ in RFC 7946 — the spec says alternative CRSes caused too many interoperability problems, so a fully-compliant GeoJSON file shouldn't carry a `crs` member at all.
 
-In practice, plenty of real-world `.geojson` files (often exported from older GIS tools like QGIS) still include a `crs` member anyway — sometimes pointing at a genuinely different system, like Web Mercator (`EPSG:3857`). `functions/upload.py` checks for this on every upload: if the file has no `crs` member, or its `crs.properties.name` is exactly `urn:ogc:def:crs:OGC:1.3:CRS84`, the CRS is accepted; anything else (a different EPSG code, a malformed `crs` object, etc.) is flagged as a `crs`-type error in the upload response and the session-wide CRS status (also returned from `GET /features`, so it survives a page reload). The UI reads that status to disable the Validate, Duplicates, Edit, Export, and Assistant tabs with an explicit error until a correctly-projected file is uploaded.
+In practice, plenty of real-world `.geojson` files (often exported from older GIS tools like QGIS) still include a `crs` member anyway — sometimes pointing at a genuinely different system, like Web Mercator (`EPSG:3857`). `functions/upload.py` checks for this on every upload against an allow-list (`ALLOWED_CRS`) of names that are equivalent to WGS84 lon/lat for this app's purposes:
+
+- `urn:ogc:def:crs:OGC:1.3:CRS84` — the RFC 7946 CRS, explicitly defined as longitude/latitude order.
+- `urn:ogc:def:crs:EPSG::4326` — same WGS84 datum as CRS84. EPSG formally defines its axis order as latitude/longitude, but GeoJSON coordinates are always lon/lat regardless of the `crs` member (RFC 7946 §4), and in practice most tools that tag a GeoJSON export `EPSG:4326` mean the same lon/lat data as CRS84 — so this app treats the two names as interchangeable rather than rejecting the very common `EPSG:4326` label.
+
+If the file has no `crs` member, or its `crs.properties.name` matches one of the above, the CRS is accepted; anything else (a different EPSG code, a malformed `crs` object, etc.) is flagged as a `crs`-type error in the upload response and the session-wide CRS status (also returned from `GET /features`, so it survives a page reload). The UI reads that status to disable the Validate, Duplicates, Edit, Export, and Assistant tabs with an explicit error until a correctly-projected file is uploaded.
 
 **Flagging is not the same as reprojecting.** Rejected/flagged files still load — the app doesn't transform their coordinates into WGS84, it just refuses to compute areas or plot positions from them until you fix the source file. Area calculations (`functions/stats.py`) and the map both assume every coordinate is already WGS84 lon/lat; there is no `pyproj`-based transformation step. Re-export the file in WGS84/CRS84 (e.g. "reproject" in QGIS) or strip its `crs` member before re-uploading.
 
