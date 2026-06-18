@@ -51,11 +51,15 @@ services:
     restart: unless-stopped
 
   logs:
-    image: amir20/dozzle:latest
+    build:
+      context: .
+      dockerfile: logger/Dockerfile
+    image: geojson-log-viewer:latest
     environment:
-      - DOZZLE_FILTER=label=com.docker.compose.project=automation_assistance
+      - LOG_ROOT=/logs
+      - TAIL_LINES=300
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logs:/logs:ro
     ports:
-      - "8888:8080"
+      - "8888:8888"
     restart: unless-stopped

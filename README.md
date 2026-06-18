@@ -145,7 +145,7 @@ Start the API first, the UI works even if the API is briefly unreachable (it sho
 
 ## Logs
 
-`docker compose up` also starts a [Dozzle](https://dozzle.dev/) container giving a live web view of the `api` and `ui` container logs at http://localhost:8888, no setup needed, it reads directly from the Docker daemon (mounted read-only) and is filtered to just this project's containers.
+`docker compose up` also starts a small local log viewer at http://localhost:8888. It reads the rotating log files from `./logs` through a read-only bind mount, so it does not need access to the Docker socket.
 
 Logs are also written to a rotating file per service (`api.log` / `ui.log`), bind-mounted to `./logs/api` and `./logs/ui` on the host via `docker-compose.yml`, so they're available as plain files and survive `docker compose down`/rebuilds, not just restarts.
 
