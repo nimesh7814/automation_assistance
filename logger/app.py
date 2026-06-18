@@ -31,7 +31,7 @@ def log_files() -> dict[str, list[str]]:
     return services
 
 
-def resolve_log_path(service: str, filename: str) -> Path:
+def resolve_log_path(service: str, filename: str, *, must_exist: bool = True) -> Path:
     if not service or service in {".", ".."} or "/" in service or "\\" in service:
         raise HTTPException(status_code=400, detail="Invalid service")
     if not filename or filename in {".", ".."} or "/" in filename or "\\" in filename:
@@ -43,7 +43,7 @@ def resolve_log_path(service: str, filename: str) -> Path:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid log path") from exc
 
-    if not path.is_file():
+    if must_exist and not path.is_file():
         raise HTTPException(status_code=404, detail="Log file not found")
     return path
 
@@ -74,6 +74,10 @@ def sse_event(event: str, payload: object) -> str:
 
 
 async def stream_log(path: Path, initial_lines: int) -> Iterable[str]:
+    while not path.exists():
+        yield sse_event("snapshot", [f"Waiting for {path.name} to be created..."])
+        await asyncio.sleep(POLL_SECONDS)
+
     yield sse_event("snapshot", read_tail(path, initial_lines))
 
     position = path.stat().st_size
@@ -130,7 +134,7 @@ def stream(
     filename: str,
     lines: int = Query(default=TAIL_LINES, ge=1, le=5000),
 ) -> StreamingResponse:
-    path = resolve_log_path(service, filename)
+    path = resolve_log_path(service, filename, must_exist=False)
     return StreamingResponse(
         stream_log(path, lines),
         media_type="text/event-stream",
